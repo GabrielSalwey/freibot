@@ -1,0 +1,27 @@
+# Core LangChain and vector database
+langchain==0.3.13
+langchain-community==0.3.13
+langchain-core==0.3.28
+langchain-openai==0.2.14
+qdrant-client==1.12.1
+
+# PDF processing (compatible versions)
+pypdf2==3.0.1
+pdfplumber==0.11.4
+unstructured==0.11.8
+
+# German language processing
+sentence-transformers==3.3.1
+
+# Web framework
+fastapi==0.115.6
+uvicorn==0.34.0
+
+# Additional utilities
+python-dotenv==1.0.1
+requests==2.32.3
+pandas==2.2.3
+numpy==2.2.1
+
+# Logging and monitoring
+loguru==0.7.3
