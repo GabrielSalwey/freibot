@@ -16,32 +16,6 @@ import anthropic
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ClaudeLLM(LLM):
-    """Custom LangChain wrapper for Claude"""
-    
-    def __init__(self, model: str = "claude-3-haiku-20240307", max_tokens: int = 1000, **kwargs):
-        super().__init__(**kwargs)
-        self.model = model
-        self.max_tokens = max_tokens
-        self.claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    
-    def _call(self, prompt: str, stop=None) -> str:
-        """Call Claude API"""
-        try:
-            response = self.claude_client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.content[0].text
-        except Exception as e:
-            logger.error(f"Claude API error: {e}")
-            return f"Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage: {e}"
-    
-    @property
-    def _llm_type(self) -> str:
-        return "claude"
-
 @dataclass
 class DocumentMetadata:
     """Metadata for processed documents"""
@@ -187,7 +161,8 @@ class FreibotRAG:
     
     def __init__(self, vectorstore_path: str = "data/vectorstore", claude_model: str = "claude-3-haiku-20240307"):
         self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
-        self.llm = ClaudeLLM(model=claude_model, max_tokens=2000)
+        self.claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.claude_model = claude_model
         self.vectorstore_path = vectorstore_path
         self.vectorstore = None
         self.qa_chain = None
@@ -202,17 +177,6 @@ class FreibotRAG:
                 allow_dangerous_deserialization=True
             )
             
-            # Create QA chain
-            self.qa_chain = RetrievalQA.from_chain_type(
-                llm=self.llm,
-                chain_type="stuff",
-                retriever=self.vectorstore.as_retriever(
-                    search_type="similarity",
-                    search_kwargs={"k": 8}  # More context for Claude
-                ),
-                return_source_documents=True
-            )
-            
             logger.info("Vector store loaded successfully")
             return True
             
@@ -222,7 +186,7 @@ class FreibotRAG:
     
     def ask_question_with_history(self, question: str, history: List) -> Dict[str, Any]:
         """Ask question with optimized context management"""
-        if not self.qa_chain:
+        if not self.vectorstore:
             return {"error": "Vector store not loaded"}
         
         try:
@@ -245,10 +209,15 @@ FRAGE: {question}
 
 Antworte präzise auf Deutsch. Nenne Quellen und Jahr."""
             
-            response = self.llm._call(claude_prompt)
+            # Direct Claude API call
+            response = self.claude_client.messages.create(
+                model=self.claude_model,
+                max_tokens=2000,
+                messages=[{"role": "user", "content": claude_prompt}]
+            )
             
             return {
-                "answer": response,
+                "answer": response.content[0].text,
                 "sources": self._extract_sources(docs),
                 "question": question
             }

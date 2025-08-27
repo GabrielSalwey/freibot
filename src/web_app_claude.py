@@ -94,9 +94,9 @@ async def startup_event():
     
     rag_system = FreibotRAG(claude_model="claude-3-haiku-20240307")
     if rag_system.load_vectorstore():
-        print("✅ RAG system with Claude initialized successfully")
+        print("RAG system with Claude initialized successfully")
     else:
-        print("❌ Failed to initialize RAG system")
+        print("Failed to initialize RAG system")
         rag_system = None
 
 @app.get("/", response_class=HTMLResponse)
