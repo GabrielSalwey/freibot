@@ -25,6 +25,7 @@ Building a scalable AI assistant that democratizes access to all Freiburg-specif
 - ✅ German-optimized embeddings
 - ✅ Conversational interface via web UI
 - ✅ Docker containerization
+- ✅ In-process similarity search with Chroma
 - ✅ Cost-efficient API usage (~3 cents per conversation)
 
 ## 🔥 The "Holy Shit" Moment
@@ -60,8 +61,8 @@ As a member of "Fröhliches Freiburg", I believe city policies should be grounde
 
 ### Tech Stack
 - **Backend**: Python 3.11, FastAPI, LangChain
-- **Vector Database**: Qdrant (self-hosted)
-- **LLMs**: Claude Haiku 3.5 (generation), OpenAI text-embedding-3-small
+- **Vector Database**: Chroma (local files)
+- **LLMs**: Claude Haiku 3.5 (direct API), OpenAI text-embedding-3-small
 - **Frontend**: HTML/JS/CSS (vanilla for now)
 - **Infrastructure**: Docker, Docker Compose
 - **Data Processing**: PyPDF2, langchain-community loaders

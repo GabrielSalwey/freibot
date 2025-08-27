@@ -7,10 +7,9 @@ from dataclasses import dataclass
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain_community.vectorstores import Chroma
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
-from langchain.llms.base import LLM
 import anthropic
 
 logging.basicConfig(level=logging.INFO)
@@ -123,35 +122,36 @@ class FreibotDocumentProcessor:
         logger.info(f"Total documents created: {len(all_documents)}")
         return all_documents
     
-    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> FAISS:
+    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> Chroma:
         """Create and persist vector store from documents"""
-        logger.info("Creating FAISS vector store...")
+        logger.info("Creating Chroma vector store...")
         
         # Process in smaller batches to avoid token limits
         batch_size = 100
-        vectorstore = None
         
-        for i in range(0, len(documents), batch_size):
+        # Clear existing store
+        if Path(persist_directory).exists():
+            import shutil
+            shutil.rmtree(persist_directory)
+        
+        # Create initial vectorstore with first batch
+        first_batch = documents[:batch_size]
+        vectorstore = Chroma.from_documents(
+            documents=first_batch,
+            embedding=self.embeddings,
+            persist_directory=persist_directory
+        )
+        
+        logger.info(f"Processing batch 1/{(len(documents)-1)//batch_size + 1}")
+        
+        # Add remaining batches
+        for i in range(batch_size, len(documents), batch_size):
             batch = documents[i:i+batch_size]
-            logger.info(f"Processing batch {i//batch_size + 1}/{(len(documents)-1)//batch_size + 1}")
+            batch_num = i//batch_size + 1
+            total_batches = (len(documents)-1)//batch_size + 1
+            logger.info(f"Processing batch {batch_num}/{total_batches}")
             
-            if vectorstore is None:
-                # Create initial vectorstore
-                vectorstore = FAISS.from_documents(
-                    documents=batch,
-                    embedding=self.embeddings
-                )
-            else:
-                # Add to existing vectorstore
-                batch_vectorstore = FAISS.from_documents(
-                    documents=batch,
-                    embedding=self.embeddings
-                )
-                vectorstore.merge_from(batch_vectorstore)
-        
-        # Save to disk
-        Path(persist_directory).mkdir(parents=True, exist_ok=True)
-        vectorstore.save_local(persist_directory)
+            vectorstore.add_documents(batch)
         
         logger.info(f"Vector store saved with {len(documents)} documents")
         return vectorstore
@@ -168,13 +168,12 @@ class FreibotRAG:
         self.qa_chain = None
         
     def load_vectorstore(self) -> bool:
-        """Load existing FAISS vector store"""
+        """Load existing Chroma vector store"""
         try:
-            # Load FAISS vectorstore from disk
-            self.vectorstore = FAISS.load_local(
-                self.vectorstore_path, 
-                self.embeddings,
-                allow_dangerous_deserialization=True
+            # Load Chroma vectorstore from disk
+            self.vectorstore = Chroma(
+                persist_directory=self.vectorstore_path, 
+                embedding_function=self.embeddings
             )
             
             logger.info("Vector store loaded successfully")

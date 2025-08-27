@@ -9,9 +9,9 @@
 ```
 PDFs → PyPDFLoader (line 111) → Pages with metadata (line 117-126) 
 → RecursiveCharacterTextSplitter (line 129) → Chunks (1500 chars)
-→ OpenAIEmbeddings → Qdrant vectorstore (port 6333)
+→ OpenAIEmbeddings → Chroma vectorstore (data/vectorstore)
 
-Query → Retrieve (K=8 chunks) → Claude Haiku prompt (line 288-301) → German response
+Query → Retrieve (K=8 chunks) → Claude Haiku direct API → German response
 ```
 
 ## Core Files
@@ -35,8 +35,8 @@ C:\Users\gabir\Projects\freibot\
 ├── src/                    # Application code
 ├── data/
 │   ├── pdfs/              # 17 Fritz Freiburg PDFs
-│   └── vectorstore/       # Qdrant persistent storage
-├── docker-compose.yml     # Qdrant + API services
+│   └── vectorstore/       # Chroma persistent storage
+├── docker-compose.yml     # Single service deployment
 ├── .env                   # OPENAI_API_KEY, ANTHROPIC_API_KEY
 └── venv/                  # Python 3.11 environment
 ```
@@ -51,10 +51,10 @@ docker-compose up -d              # Web UI: http://localhost:8000
 python src/cli_claude.py -q "Wie viele Einwohner hat Freiburg?"
 
 # Rebuild index
-python src/document_processor_claude.py
+python convert_to_chroma.py
 
 # Check services
-docker ps                         # Should show qdrant + api containers
+docker ps                         # Should show freibot-api container
 docker logs freibot-api          # Debug API issues
 ```
 
@@ -79,4 +79,4 @@ docker logs freibot-api          # Debug API issues
 4. **Document**: Update this file if architecture changes
 
 ---
-*Working Directory: C:\Users\gabir\Projects\freibot | Vector DB: localhost:6333 | Web: localhost:8000*
+*Working Directory: C:\Users\gabir\Projects\freibot | Vector DB: Chroma local files | Web: localhost:8000*

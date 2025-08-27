@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert Freibot to FAISS vectorstore"""
+"""Convert Freibot to Chroma vectorstore"""
 
 import os
 import sys
@@ -26,9 +26,9 @@ def main():
     documents = processor.process_all_pdfs()
     print(f"Processed {len(documents)} document chunks")
     
-    # Create FAISS vectorstore
+    # Create Chroma vectorstore
     vectorstore = processor.create_vectorstore(documents, "data/vectorstore")
-    print("FAISS vectorstore created successfully!")
+    print("Chroma vectorstore created successfully!")
 
 if __name__ == "__main__":
     main()
