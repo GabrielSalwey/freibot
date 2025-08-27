@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Essential dependencies only - Qdrant, no ChromaDB
+# Essential dependencies only - FAISS for vectors
 RUN pip install --no-cache-dir \
     langchain-community==0.3.13 \
     langchain-openai==0.2.14 \
@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir \
     pypdf \
     fastapi==0.115.6 \
     uvicorn==0.34.0 \
-    qdrant-client==1.12.1 \
+    faiss-cpu==1.7.4 \
     python-dotenv==1.0.1 \
     langchain==0.3.13 \
     numpy

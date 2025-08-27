@@ -7,11 +7,10 @@ from dataclasses import dataclass
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import Qdrant
+from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
 from langchain.llms.base import LLM
-from qdrant_client import QdrantClient
 import anthropic
 
 logging.basicConfig(level=logging.INFO)
@@ -19,9 +18,6 @@ logger = logging.getLogger(__name__)
 
 class ClaudeLLM(LLM):
     """Custom LangChain wrapper for Claude"""
-    model: str = "claude-3-haiku-20240307"
-    max_tokens: int = 1000
-    claude_client: Any = None
     
     def __init__(self, model: str = "claude-3-haiku-20240307", max_tokens: int = 1000, **kwargs):
         super().__init__(**kwargs)
@@ -153,24 +149,37 @@ class FreibotDocumentProcessor:
         logger.info(f"Total documents created: {len(all_documents)}")
         return all_documents
     
-    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> Qdrant:
+    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> FAISS:
         """Create and persist vector store from documents"""
-        logger.info("Creating vector store...")
+        logger.info("Creating FAISS vector store...")
         
-        # Connect to Qdrant
-        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
-        client = QdrantClient(host=qdrant_host, port=6333)
-        collection_name = "freibot"
+        # Process in smaller batches to avoid token limits
+        batch_size = 100
+        vectorstore = None
         
-        # Create vectorstore with all documents
-        vectorstore = Qdrant.from_documents(
-            documents=documents,
-            embedding=self.embeddings,
-            collection_name=collection_name,
-            url=f"http://{qdrant_host}:6333"
-        )
+        for i in range(0, len(documents), batch_size):
+            batch = documents[i:i+batch_size]
+            logger.info(f"Processing batch {i//batch_size + 1}/{(len(documents)-1)//batch_size + 1}")
+            
+            if vectorstore is None:
+                # Create initial vectorstore
+                vectorstore = FAISS.from_documents(
+                    documents=batch,
+                    embedding=self.embeddings
+                )
+            else:
+                # Add to existing vectorstore
+                batch_vectorstore = FAISS.from_documents(
+                    documents=batch,
+                    embedding=self.embeddings
+                )
+                vectorstore.merge_from(batch_vectorstore)
         
-        logger.info(f"Vector store created with {len(documents)} documents")
+        # Save to disk
+        Path(persist_directory).mkdir(parents=True, exist_ok=True)
+        vectorstore.save_local(persist_directory)
+        
+        logger.info(f"Vector store saved with {len(documents)} documents")
         return vectorstore
 
 class FreibotRAG:
@@ -179,23 +188,21 @@ class FreibotRAG:
     def __init__(self, vectorstore_path: str = "data/vectorstore", claude_model: str = "claude-3-haiku-20240307"):
         self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
         self.llm = ClaudeLLM(model=claude_model, max_tokens=2000)
-        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
-        self.client = QdrantClient(host=qdrant_host, port=6333)
-        self.collection_name = "freibot"
+        self.vectorstore_path = vectorstore_path
         self.vectorstore = None
         self.qa_chain = None
         
     def load_vectorstore(self) -> bool:
-        """Load existing vector store"""
+        """Load existing FAISS vector store"""
         try:
-            # Connect to existing Qdrant collection
-            self.vectorstore = Qdrant(
-                client=self.client,
-                collection_name=self.collection_name,
-                embeddings=self.embeddings
+            # Load FAISS vectorstore from disk
+            self.vectorstore = FAISS.load_local(
+                self.vectorstore_path, 
+                self.embeddings,
+                allow_dangerous_deserialization=True
             )
             
-            # Create QA chain with more retrieval for Claude's better context handling
+            # Create QA chain
             self.qa_chain = RetrievalQA.from_chain_type(
                 llm=self.llm,
                 chain_type="stuff",
