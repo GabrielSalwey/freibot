@@ -27,13 +27,34 @@ Building a scalable AI assistant that democratizes access to all Freiburg-specif
 - ✅ Docker containerization
 - ✅ Cost-efficient API usage (~3 cents per conversation)
 
-## 💡 Why This Matters
+## 🔥 The "Holy Shit" Moment
 
-As a member of "Fröhliches Freiburg", I believe city policies should be grounded in evidence. By making Freiburg's best data source accessible to everyone - local press, businesses, activists, and citizens - we enable:
-- Evidence-based decision making
-- Better informed public discourse
-- Market insights for local businesses
-- Civic engagement through data literacy
+On July 15, 2025, what started as a learning experiment became reality. In a single afternoon session, Claude built our entire MVP - downloading PDFs, setting up Docker, creating the RAG pipeline, and deploying the web interface. Total cost: **€0.21** (18 cents for embeddings, 3 cents for testing). 
+
+This wasn't just about saving money. It validated something bigger: AI-assisted development can make civic tech accessible to small groups of motivated citizens. You don't need a tech company or government budget to build tools that serve your community.
+
+## 💡 Why This Matters - Real World Impact
+
+As a member of "Fröhliches Freiburg", I believe city policies should be grounded in evidence. But this goes beyond politics. Here's who we're building for:
+
+**For Immigrants & International Students**: 
+- "How do I register my car in Freiburg?" → Step-by-step KFZ-Zulassung guidance
+- "Which Stadtteile are affordable for students?" → Real rent statistics by district
+- Navigate German bureaucracy without perfect German skills
+
+**For Journalists & Activists**:
+- Quick fact-checking during city council meetings
+- "What percentage of Vauban residents bike to work?" → Instant statistics with sources
+- Evidence-based arguments for policy proposals
+
+**For Local Businesses**:
+- "Which districts have the most young families?" → Demographic insights for location planning
+- "How has foot traffic changed in the Altstadt?" → Economic indicators for decision making
+
+**For Every Freiburger**:
+- "Why is my street being renovated again?" → Access to urban planning data
+- "How does my district compare in terms of green space?" → Quality of life metrics
+- Making democracy tangible through accessible information
 
 ## 🛠️ Technical Architecture
 

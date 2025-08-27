@@ -7,24 +7,27 @@ from dataclasses import dataclass
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_community.vectorstores import Qdrant
 from langchain.chains import RetrievalQA
 from langchain.schema import Document
 from langchain.llms.base import LLM
+from qdrant_client import QdrantClient
 import anthropic
-import PyPDF2
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ClaudeLLM(LLM):
     """Custom LangChain wrapper for Claude"""
+    model: str = "claude-3-haiku-20240307"
+    max_tokens: int = 1000
+    claude_client: Any = None
     
     def __init__(self, model: str = "claude-3-haiku-20240307", max_tokens: int = 1000, **kwargs):
         super().__init__(**kwargs)
-        self.claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         self.model = model
         self.max_tokens = max_tokens
+        self.claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     
     def _call(self, prompt: str, stop=None) -> str:
         """Call Claude API"""
@@ -150,28 +153,21 @@ class FreibotDocumentProcessor:
         logger.info(f"Total documents created: {len(all_documents)}")
         return all_documents
     
-    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> Chroma:
+    def create_vectorstore(self, documents: List[Document], persist_directory: str = "data/vectorstore") -> Qdrant:
         """Create and persist vector store from documents"""
         logger.info("Creating vector store...")
         
-        # Process documents in smaller batches to avoid token limits
-        batch_size = 50  # Process 50 documents at a time
+        # Connect to Qdrant
+        client = QdrantClient(host="qdrant", port=6333)
+        collection_name = "freibot"
         
-        vectorstore = None
-        for i in range(0, len(documents), batch_size):
-            batch = documents[i:i + batch_size]
-            logger.info(f"Processing batch {i//batch_size + 1}/{(len(documents) + batch_size - 1)//batch_size} ({len(batch)} documents)")
-            
-            if vectorstore is None:
-                # Create initial vectorstore
-                vectorstore = Chroma.from_documents(
-                    documents=batch,
-                    embedding=self.embeddings,
-                    persist_directory=persist_directory
-                )
-            else:
-                # Add to existing vectorstore
-                vectorstore.add_documents(batch)
+        # Create vectorstore with all documents
+        vectorstore = Qdrant.from_documents(
+            documents=documents,
+            embedding=self.embeddings,
+            collection_name=collection_name,
+            url="http://qdrant:6333"
+        )
         
         logger.info(f"Vector store created with {len(documents)} documents")
         return vectorstore
@@ -180,18 +176,21 @@ class FreibotRAG:
     """Main RAG system for Freiburg questions using Claude"""
     
     def __init__(self, vectorstore_path: str = "data/vectorstore", claude_model: str = "claude-3-haiku-20240307"):
-        self.vectorstore_path = vectorstore_path
         self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
         self.llm = ClaudeLLM(model=claude_model, max_tokens=2000)
+        self.client = QdrantClient(host="qdrant", port=6333)
+        self.collection_name = "freibot"
         self.vectorstore = None
         self.qa_chain = None
         
     def load_vectorstore(self) -> bool:
         """Load existing vector store"""
         try:
-            self.vectorstore = Chroma(
-                persist_directory=self.vectorstore_path,
-                embedding_function=self.embeddings
+            # Connect to existing Qdrant collection
+            self.vectorstore = Qdrant(
+                client=self.client,
+                collection_name=self.collection_name,
+                embeddings=self.embeddings
             )
             
             # Create QA chain with more retrieval for Claude's better context handling
