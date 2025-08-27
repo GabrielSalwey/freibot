@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir \
 
 # Copy core files only - NO secrets
 COPY src/ ./src/
+COPY data/vectorstore/ ./data/vectorstore/
 
 ENV PYTHONPATH=/app
 
