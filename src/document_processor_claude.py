@@ -158,7 +158,8 @@ class FreibotDocumentProcessor:
         logger.info("Creating vector store...")
         
         # Connect to Qdrant
-        client = QdrantClient(host="qdrant", port=6333)
+        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
+        client = QdrantClient(host=qdrant_host, port=6333)
         collection_name = "freibot"
         
         # Create vectorstore with all documents
@@ -166,7 +167,7 @@ class FreibotDocumentProcessor:
             documents=documents,
             embedding=self.embeddings,
             collection_name=collection_name,
-            url="http://qdrant:6333"
+            url=f"http://{qdrant_host}:6333"
         )
         
         logger.info(f"Vector store created with {len(documents)} documents")
@@ -178,7 +179,8 @@ class FreibotRAG:
     def __init__(self, vectorstore_path: str = "data/vectorstore", claude_model: str = "claude-3-haiku-20240307"):
         self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
         self.llm = ClaudeLLM(model=claude_model, max_tokens=2000)
-        self.client = QdrantClient(host="qdrant", port=6333)
+        qdrant_host = os.getenv("QDRANT_HOST", "localhost")
+        self.client = QdrantClient(host=qdrant_host, port=6333)
         self.collection_name = "freibot"
         self.vectorstore = None
         self.qa_chain = None
