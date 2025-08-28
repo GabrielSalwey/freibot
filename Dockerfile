@@ -21,9 +21,21 @@ RUN pip install --no-cache-dir \
     langchain==0.3.13 \
     numpy
 
-# Copy core files only - NO secrets
+# DEBUG: Check what Railway can see in build context
+RUN echo "=== Build context root ==="
+RUN ls -la || echo "ls failed"
+RUN echo "=== Checking for data directory ==="
+RUN ls -la data/ || echo "data/ directory not found"
+RUN echo "=== Checking for data/vectorstore ==="
+RUN ls -la data/vectorstore/ || echo "data/vectorstore/ directory not found"
+RUN echo "=== File sizes if vectorstore exists ==="
+RUN du -h data/vectorstore/* 2>/dev/null || echo "Cannot check vectorstore file sizes"
+RUN echo "=== End debug info ==="
+
+# Copy core files only - NO secrets  
 COPY src/ ./src/
-COPY data/vectorstore/ ./data/vectorstore/
+# TEMPORARILY COMMENTED OUT THE FAILING LINE
+# COPY data/vectorstore/ ./data/vectorstore/
 
 ENV PYTHONPATH=/app
 
