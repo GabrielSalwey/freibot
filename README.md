@@ -24,13 +24,16 @@ Building a scalable AI assistant that democratizes access to all Freiburg-specif
 - ✅ PDF ingestion and intelligent chunking
 - ✅ German-optimized embeddings
 - ✅ Conversational interface via web UI
-- ✅ Docker containerization
+- ✅ Single-service Docker deployment
 - ✅ In-process similarity search with Chroma
+- ✅ Direct Claude API integration
 - ✅ Cost-efficient API usage (~3 cents per conversation)
 
 ## 🔥 The "Holy Shit" Moment
 
 On July 15, 2025, what started as a learning experiment became reality. In a single afternoon session, Claude built our entire MVP - downloading PDFs, setting up Docker, creating the RAG pipeline, and deploying the web interface. Total cost: **€0.21** (18 cents for embeddings, 3 cents for testing). 
+
+**August 28, 2025 Update**: In another session, we completely re-architected the system - migrated from FAISS to Chroma, eliminated Qdrant dependency, fixed Pydantic issues, and deployed to Railway. Total additional cost: **€0.50**. The entire system now runs as a single service with embedded vectorstore.
 
 This wasn't just about saving money. It validated something bigger: AI-assisted development can make civic tech accessible to small groups of motivated citizens. You don't need a tech company or government budget to build tools that serve your community.
 
@@ -61,10 +64,10 @@ As a member of "Fröhliches Freiburg", I believe city policies should be grounde
 
 ### Tech Stack
 - **Backend**: Python 3.11, FastAPI, LangChain
-- **Vector Database**: Chroma (local files)
+- **Vector Database**: Chroma (embedded, file-based)
 - **LLMs**: Claude Haiku 3.5 (direct API), OpenAI text-embedding-3-small
 - **Frontend**: HTML/JS/CSS (vanilla for now)
-- **Infrastructure**: Docker, Docker Compose
+- **Infrastructure**: Docker (single service)
 - **Data Processing**: PyPDF2, langchain-community loaders
 
 ## 🏃 Quick Start
@@ -88,7 +91,7 @@ ANTHROPIC_API_KEY=your_anthropic_key
 OPENAI_API_KEY=your_openai_key
 ```
 
-3. Start the services:
+3. Start the service:
 ```bash
 docker-compose up -d
 ```
@@ -177,9 +180,9 @@ This project serves as a practical learning ground for:
 ## 💰 Cost Efficiency
 
 Current operational costs:
-- Embedding generation: ~€0.18 per full dataset
+- Embedding generation: ~€0.50 per full dataset rebuild
 - Query processing: ~€0.003 per interaction
-- Infrastructure: Self-hosted on community resources
+- Infrastructure: Single service deployment, minimal resource usage
 
 Our focus on efficiency ensures this remains accessible as a public good.
 
