@@ -2,6 +2,7 @@
 haystack-ai
 voyage-embedders-haystack
 voyageai
+openrouter-haystack
 chromadb
 pypdf
 fastapi

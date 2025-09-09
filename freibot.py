@@ -25,22 +25,29 @@ from haystack_integrations.document_stores.chroma import ChromaDocumentStore
 from haystack.utils.auth import Secret
 
 # Import web interface
-from web import get_web_interface
+from web_app.web import get_web_interface
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
 VOYAGE_MODEL = "voyage-3-large"
-LLM_MODEL = "openai/gpt-5-mini"
+LLM_MODEL = "openai/gpt-4o-mini"
 VECTORSTORE_PATH = "./data/vectorstore"
 COLLECTION_NAME = "freiburg_docs_v3large"
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
-# Initialize ChromaDB store
-store = ChromaDocumentStore(
-    persist_path=VECTORSTORE_PATH,
-    collection_name=COLLECTION_NAME
-)
+# Initialize ChromaDB store with error handling
+try:
+    store = ChromaDocumentStore(
+        persist_path=VECTORSTORE_PATH,
+        collection_name=COLLECTION_NAME
+    )
+    STORE_AVAILABLE = True
+except Exception as e:
+    print(f"WARNING: Failed to initialize vectorstore: {e}")
+    store = None
+    STORE_AVAILABLE = False
 
 # Request model
 class QuestionRequest(BaseModel):
@@ -65,12 +72,15 @@ async def lifespan(app: FastAPI):
     rag_pipeline = build_pipeline()
     
     # Check documents
-    doc_count = store.count_documents()
-    print(f"Documents in store: {doc_count}")
-    
-    if doc_count == 0:
-        print("\nWARNING: No documents indexed!")
-        print("Run: python scripts/index_documents.py")
+    if STORE_AVAILABLE:
+        doc_count = store.count_documents()
+        print(f"Documents in store: {doc_count}")
+        
+        if doc_count == 0:
+            print("\nWARNING: No documents indexed!")
+            print("Run: python scripts/index_documents.py")
+    else:
+        print("\nWARNING: Vectorstore not available - running in fallback mode")
     
     print("Ready!")
     
@@ -81,7 +91,7 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI
 app = FastAPI(title="Freibot", version="4.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 # Conversation history (session_id -> list of exchanges)
 conversation_history = {}
@@ -159,7 +169,8 @@ def log_conversation(question: str, answer: str, success: bool):
         "success": success
     }
     
-    with open("conversation_log.jsonl", "a", encoding="utf-8") as f:
+    os.makedirs("web_app/logs", exist_ok=True)
+    with open("web_app/logs/conversation_log.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
 
@@ -177,20 +188,16 @@ async def ask(request: QuestionRequest):
         # Check if retrieval needed
         needs_retrieval, k = classify_query(question)
         
-        if not needs_retrieval:
-            # Direct answer without retrieval
-            from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
+        if not needs_retrieval or not STORE_AVAILABLE:
+            # Direct answer without retrieval (reuse pipeline component)
+            llm_component = rag_pipeline.get_component("llm") if rag_pipeline else None
             
-            generator = OpenRouterChatGenerator(
-                api_key=Secret.from_token(os.getenv("OPENROUTER_API_KEY")),
-                model=LLM_MODEL,
-                generation_kwargs={"temperature": 0.1, "max_tokens": 500}
-            )
-            
-            messages = [ChatMessage.from_user(f"Beantworte auf Deutsch: {question}")]
-            result = generator.run(messages=messages)
-            
-            answer = result["replies"][0].text if result["replies"] else "Keine Antwort"
+            if llm_component:
+                messages = [ChatMessage.from_user(f"Beantworte auf Deutsch: {question}")]
+                result = llm_component.run(messages=messages)
+                answer = result["replies"][0].text if result["replies"] else "Keine Antwort"
+            else:
+                answer = "System nicht verfügbar. Bitte versuchen Sie es später erneut."
             sources = []
         else:
             # RAG pipeline
@@ -252,10 +259,12 @@ async def ask(request: QuestionRequest):
 @app.get("/health")
 async def health():
     """Health check."""
+    doc_count = store.count_documents() if STORE_AVAILABLE else 0
     return {
-        "status": "healthy",
-        "documents": store.count_documents(),
-        "pipeline_ready": rag_pipeline is not None
+        "status": "healthy" if STORE_AVAILABLE else "degraded",
+        "documents": doc_count,
+        "pipeline_ready": rag_pipeline is not None,
+        "vectorstore_available": STORE_AVAILABLE
     }
 
 @app.get("/stats")
@@ -263,20 +272,24 @@ async def stats():
     """System statistics."""
     pdf_dir = Path("data/pdfs")
     pdf_count = len(list(pdf_dir.glob("*.pdf"))) if pdf_dir.exists() else 0
+    chunk_count = store.count_documents() if STORE_AVAILABLE else 0
     
     return {
         "pdf_count": pdf_count,
-        "chunk_count": store.count_documents(),
+        "chunk_count": chunk_count,
         "embedding_model": VOYAGE_MODEL,
-        "llm_model": LLM_MODEL
+        "llm_model": LLM_MODEL,
+        "vectorstore_available": STORE_AVAILABLE
     }
 
 @app.post("/index")
 async def index():
     """Trigger document indexing."""
+    current_docs = store.count_documents() if STORE_AVAILABLE else 0
     return {
         "message": "Please run: python scripts/index_documents.py",
-        "current_docs": store.count_documents()
+        "current_docs": current_docs,
+        "vectorstore_available": STORE_AVAILABLE
     }
 
 @app.get("/", response_class=HTMLResponse)
@@ -285,4 +298,5 @@ async def web_interface():
     return HTMLResponse(content=get_web_interface())
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    port = int(os.getenv("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)
