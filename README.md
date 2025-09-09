@@ -21,21 +21,13 @@ Building a scalable AI assistant that democratizes access to all Freiburg-specif
 **MVP Achieved**: Successfully built a working RAG system that ingests 17 PDF reports from Fritz Freiburg and provides accurate, conversational answers about city data.
 
 **Live Features**:
-- ✅ PDF ingestion and intelligent chunking
-- ✅ German-optimized embeddings
-- ✅ Conversational interface via web UI
-- ✅ Single-service Docker deployment
-- ✅ In-process similarity search with Chroma
-- ✅ Direct Claude API integration
-- ✅ Cost-efficient API usage (~3 cents per conversation)
-
-## 🔥 The "Holy Shit" Moment
-
-On July 15, 2025, what started as a learning experiment became reality. In a single afternoon session, Claude built our entire MVP - downloading PDFs, setting up Docker, creating the RAG pipeline, and deploying the web interface. Total cost: **€0.21** (18 cents for embeddings, 3 cents for testing). 
-
-**August 28, 2025 Update**: In another session, we completely re-architected the system - migrated from FAISS to Chroma, eliminated Qdrant dependency, fixed Pydantic issues, and deployed to Railway. Total additional cost: **€0.50**. The entire system now runs as a single service with embedded vectorstore.
-
-This wasn't just about saving money. It validated something bigger: AI-assisted development can make civic tech accessible to small groups of motivated citizens. You don't need a tech company or government budget to build tools that serve your community.
+- ✅ PDF ingestion and intelligent chunking (3776 documents indexed)
+- ✅ German-optimized embeddings with VoyageAI
+- ✅ Conversational web interface with privacy mode
+- ✅ Simplified single-file architecture (279 lines)
+- ✅ CLI tools for testing and interaction
+- ✅ Session management and conversation history
+- ✅ Dynamic document retrieval (0-3 docs based on query type)
 
 ## 💡 Why This Matters - Real World Impact
 
@@ -63,19 +55,24 @@ As a member of "Fröhliches Freiburg", I believe city policies should be grounde
 ## 🛠️ Technical Architecture
 
 ### Tech Stack
-- **Backend**: Python 3.11, FastAPI, LangChain
-- **Vector Database**: Chroma (embedded, file-based)
-- **LLMs**: Claude Haiku 3.5 (direct API), OpenAI text-embedding-3-small
-- **Frontend**: HTML/JS/CSS (vanilla for now)
-- **Infrastructure**: Docker (single service)
-- **Data Processing**: PyPDF2, langchain-community loaders
+- **Backend**: Python 3.11+, FastAPI, Haystack 2.17
+- **Vector Database**: ChromaDB (embedded, persistent local storage)
+- **LLMs**: OpenRouter (gpt-4o-mini), VoyageAI (voyage-3-large embeddings)
+- **Frontend**: HTML/JS/CSS web interface (vanilla)
+- **Infrastructure**: Single service, no Docker required
+- **Data Processing**: PyPDF processing via Haystack components
+
+### Architecture Principles
+- **KISS & YAGNI**: Single-file main application (279 lines)
+- **Direct component usage**: No abstractions over Haystack
+- **Privacy-first**: Optional privacy mode, DSGVO-compliant logging
+- **Organized scripts**: Separated CLI and testing tools
 
 ## 🏃 Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
 - Python 3.11+
-- API Keys: Anthropic (Claude) and OpenAI
+- API Keys: VoyageAI (embeddings) and OpenRouter (LLM)
 
 ### Installation
 
@@ -85,45 +82,65 @@ git clone https://github.com/yourusername/freibot.git
 cd freibot
 ```
 
-2. Create `.env` file:
+2. Install dependencies:
 ```bash
-ANTHROPIC_API_KEY=your_anthropic_key
-OPENAI_API_KEY=your_openai_key
-```
-
-3. Start the service:
-```bash
-docker-compose up -d
-```
-
-4. Access the web interface:
-```
-http://localhost:8000
-```
-
-### Development Setup
-
-For local development without Docker:
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
+```
 
-# Run development server
-python src/main.py
+3. Create `.env` file:
+```bash
+VOYAGE_API_KEY=your_voyage_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+```
+
+4. Start the server:
+```bash
+python freibot.py
+# Server runs at http://localhost:8001
+```
+
+5. Use the system:
+```bash
+# Web interface
+# Visit http://localhost:8001
+
+# CLI tool
+python scripts/cli.py ask "Wie viele Einwohner hat Freiburg?"
+python scripts/cli.py interactive
+python scripts/cli.py benchmark
+
+# Direct API
+curl -X POST http://localhost:8001/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Lärmschutzverordnung Altstadt"}'
+```
+
+### Development Tools
+
+```bash
+# Run API tests
+python scripts/test_api.py
+
+# Test dynamic k selection
+python scripts/test_dynamic_k.py
+
+# Manual document indexing (if needed)
+python scripts/index_documents.py
+
+# Health check
+python scripts/cli.py health
 ```
 
 ## 📊 Data Sources
 
 Currently processing 17 comprehensive PDF reports from fritz.freiburg.de including:
-- Demographic statistics
-- Economic indicators
-- Environmental data
-- Social surveys
-- Urban development metrics
+- Demographic statistics and population data
+- Economic indicators and employment surveys
+- Environmental data and sustainability metrics
+- Social surveys and citizen satisfaction
+- Urban development and transportation metrics
+
+**Total indexed**: 3776 document chunks optimized for German text retrieval
 
 **Future data sources**:
 - City council protocols
@@ -138,36 +155,31 @@ Currently processing 17 comprehensive PDF reports from fritz.freiburg.de includi
 - "Was sind die häufigsten Beschwerden der Bürger?"
 - "Zeige mir die Entwicklung der Mietpreise in den letzten 5 Jahren"
 - "Welche Stadtteile haben die höchste Zufriedenheit mit dem ÖPNV?"
-
-## 🎓 Learning & Skills Development
-
-This project serves as a practical learning ground for:
-- **RAG Architecture**: Document chunking, embedding strategies, retrieval optimization
-- **Vector Databases**: Similarity search, metadata filtering, performance tuning
-- **Production ML**: Containerization, API design, cost optimization
-- **German NLP**: Language-specific challenges, cultural context handling
+- "Wie ist die Arbeitslosenquote in Freiburg?"
 
 ## 📈 Roadmap
 
-### Phase 1: Foundation (Current)
-- [x] Basic RAG pipeline
-- [x] Docker deployment
-- [x] Web interface
-- [ ] Source citations
-- [ ] Chat memory
-- [ ] Improved UI
+### Phase 1: Foundation ✅ (Current)
+- [x] Basic RAG pipeline with Haystack
+- [x] Web interface with privacy mode
+- [x] CLI tools for testing and interaction
+- [x] Simplified architecture (279 lines)
+- [x] German-optimized retrieval
+- [ ] Improved source citations
+- [ ] Semantic chunking
+- [ ] Response time optimization
 
 ### Phase 2: Expansion
 - [ ] Additional data sources (news, events)
-- [ ] Multi-language support
-- [ ] Advanced analytics
-- [ ] Mobile app
+- [ ] Multi-language support (English, French)
+- [ ] Advanced analytics and data visualization
+- [ ] Mobile-responsive interface
 - [ ] User accounts and personalization
 
 ### Phase 3: Intelligence
 - [ ] Form-filling assistance
 - [ ] Proactive notifications
-- [ ] Integration with city services
+- [ ] Integration with city services APIs
 - [ ] Voice interface
 - [ ] Predictive insights
 
@@ -177,21 +189,24 @@ This project serves as a practical learning ground for:
 - [ ] Open source framework for other cities
 - [ ] Community-driven data validation
 
-## 💰 Cost Efficiency
+## 🏗️ Project Structure
 
-Current operational costs:
-- Embedding generation: ~€0.50 per full dataset rebuild
-- Query processing: ~€0.003 per interaction
-- Infrastructure: Single service deployment, minimal resource usage
-
-Our focus on efficiency ensures this remains accessible as a public good.
-
-## 🏛️ Governance & Ethics
-
-- **Privacy First**: DSGVO compliance, no personal data collection
-- **Transparency**: Open source, documented decisions
-- **Local Control**: German-hosted, community-operated
-- **Accessibility**: Free for all citizens, multilingual support planned
+```
+freibot/
+├── freibot.py                 # Main API server (279 lines)
+├── web.py                     # Web interface (292 lines)
+├── scripts/
+│   ├── cli.py                 # CLI tool for testing
+│   ├── index_documents.py     # Document indexing
+│   ├── test_api.py           # API tests
+│   └── test_dynamic_k.py     # Dynamic k tests
+├── data/
+│   ├── pdfs/                 # 17 Fritz Freiburg PDFs
+│   └── vectorstore/          # ChromaDB storage
+├── requirements.txt          # Python dependencies
+├── .env                      # API keys
+└── QUICKSTART.md            # Usage documentation
+```
 
 ## 👥 Team & Community
 
@@ -214,7 +229,8 @@ MIT License - See [LICENSE](LICENSE) for details
 ## 🙏 Acknowledgments
 
 - Fritz Freiburg for comprehensive city data
-- The open source community for amazing tools
+- The Haystack community for excellent RAG tools
+- VoyageAI and OpenRouter for accessible AI APIs
 - Freiburg citizens for inspiration and feedback
 - Claude AI for development assistance (meta!)
 
