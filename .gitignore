@@ -10,6 +10,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# Testing
+.pytest_cache/
+
 # Environment variables
 .env
 .env.local

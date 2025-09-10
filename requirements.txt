@@ -18,3 +18,7 @@ colorama
 loguru
 openai
 pytest
+
+# Chainlit for modern web interface
+chainlit
+tiktoken
