@@ -23,7 +23,7 @@ load_dotenv()
 
 # Configuration
 VOYAGE_MODEL = "voyage-3-large"
-LLM_MODEL = "openai/gpt-4o-mini"
+LLM_MODEL = "openai/gpt-5-mini"
 VECTORSTORE_PATH = "./data/vectorstore"
 COLLECTION_NAME = "freiburg_docs_v3large"
 MAX_TOKENS = 50000

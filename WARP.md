@@ -6,9 +6,14 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ### Starting the Application
 ```bash
-# Start the main API server
+# Legacy FastAPI Interface
 python freibot.py
 # Server runs at http://localhost:8001
+
+# Modern Chainlit Interface (with streaming)
+cd webapp
+chainlit run chainlit_app.py
+# App runs at http://localhost:8000
 
 # Start with custom port
 PORT=8002 python freibot.py
@@ -89,7 +94,9 @@ curl -X POST http://localhost:8001/ask \
 - **Document Processing**: PDF ingestion from Fritz Freiburg reports
 - **Vector Search**: ChromaDB with VoyageAI embeddings for German text
 - **LLM Generation**: OpenRouter (gpt-4o-mini) for conversational responses
-- **Web Interface**: FastAPI server with vanilla HTML/JS/CSS frontend
+- **Dual Interface Options**:
+  - **Legacy**: FastAPI server with vanilla HTML/JS/CSS frontend
+  - **Modern**: Chainlit webapp with streaming responses and 50k token context
 
 ### Key Components
 
@@ -99,19 +106,25 @@ curl -X POST http://localhost:8001/ask \
 - **Session Management**: Conversation history with 10-exchange memory per session
 - **Privacy Mode**: Optional mode that disables logging and uses weaker models
 
-#### 2. Document Store (`data/vectorstore/`)
+#### 2. Chainlit Webapp (`webapp/chainlit_app.py`)
+- **Modern UI**: Real-time token streaming with simulated effect
+- **Same Pipeline**: Reuses Haystack components from main app
+- **Enhanced UX**: 50k token context management
+- **Privacy Support**: OpenRouter privacy flags integration
+
+#### 3. Document Store (`data/vectorstore/`)
 - **ChromaDB**: Embedded, persistent local vector database
 - **German Optimization**: VoyageAI voyage-3-large embeddings tuned for German compound words
 - **Document Structure**: 3776 indexed chunks from 17 Fritz Freiburg PDF reports
 - **Chunking Strategy**: Semantic chunking with metadata preservation
 
-#### 3. CLI System (`scripts/cli.py`)
+#### 4. CLI System (`scripts/cli.py`)
 - **TestClient Class**: Reusable client that wraps API calls for testing
 - **Multi-mode Interface**: Support for single questions, interactive mode, and batch benchmarking
 - **Health Monitoring**: Comprehensive checks for API, vectorstore, OpenRouter, and VoyageAI
 - **Windows Compatibility**: UTF-8 encoding fixes for proper German text handling
 
-#### 4. Testing Framework (`tests/`)
+#### 5. Testing Framework (`tests/`)
 - **Pytest Integration**: Professional test structure with fixtures and parametrization
 - **Test Categories**: Organized into latency, quality, retrieval, behavior, and regression tests
 - **Quality Tiers**: Three-tier quality validation (structural → content → semantic)
@@ -179,3 +192,54 @@ curl -X POST http://localhost:8001/ask \
 - **LLM Models**: OpenRouter model can be changed via environment variable
 - **Embedding Models**: VoyageAI model configurable in main application
 - **Web Interface**: Frontend located in `web_app/web.py` for customization
+- **Chainlit Interface**: Modern UI in `webapp/chainlit_app.py`
+
+## Development Principles (Critical)
+
+### Core Philosophy - KISS & YAGNI
+- **50-line rule**: If a module exceeds 50 lines, question if it can be simpler
+- **Functional over OOP**: Pure functions preferred over classes
+- **Data-oriented**: Simple dicts/lists over complex dataclasses
+- **Direct Framework Usage**: No wrapper classes around Haystack components
+- **Documentation**: Comments for "why" not "what"
+
+### Critical Anti-Patterns to Avoid
+
+1. **DON'T create abstractions before you need them**
+   - Bad: Creating wrapper classes around framework components
+   - Good: Direct Haystack usage until complexity demands abstraction
+
+2. **DON'T use dataclasses for simple configs**
+   - Bad: 165 lines of config management with nested objects
+   - Good: Simple dict/env vars (20 lines total)
+
+3. **DON'T separate concerns prematurely**
+   - Bad: Split into api.py, rag.py, config.py before proving concept
+   - Good: Single file until complexity demands splitting
+
+4. **DON'T over-engineer error handling**
+   - Bad: Custom validation methods everywhere
+   - Good: Let failures bubble up with context
+
+### Valuable Patterns to Preserve
+
+**Rate limiting for API calls:**
+```python
+class SimpleRateLimiter:
+    def __init__(self, max_requests=10, window_seconds=60):
+        self.requests = deque()
+        self.max_requests = max_requests
+        self.window = timedelta(seconds=window_seconds)
+```
+
+**Session management (simple dict):**
+```python
+sessions: Dict[str, List[Dict]] = {}
+if len(sessions[session_id]) > 10:
+    sessions[session_id] = sessions[session_id][-10:]
+```
+
+**German-optimized chunking:**
+```python
+separators = ["\n\n", "\n", ". ", "! ", "? ", "; ", ", ", " "]
+```
