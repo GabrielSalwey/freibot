@@ -87,8 +87,31 @@ def create_rag_components():
     
     return text_embedder, retriever, chat_generator
 
-# Initialize components
-text_embedder, retriever, chat_generator = create_rag_components()
+# Initialize components lazily (will be created when needed)
+text_embedder, retriever, chat_generator = None, None, None
+
+def ensure_components_initialized():
+    """Initialize components if not already done"""
+    global text_embedder, retriever, chat_generator
+    
+    if text_embedder is None:
+        # Check if environment variables are available
+        voyage_key = os.getenv("VOYAGE_API_KEY")
+        openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        
+        if not voyage_key or not openrouter_key:
+            print("WARNING: Missing API keys - components will not be initialized")
+            return False
+            
+        try:
+            text_embedder, retriever, chat_generator = create_rag_components()
+            print("✅ RAG components initialized successfully")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to initialize components: {e}")
+            return False
+    
+    return True
 
 @cl.on_chat_start
 async def start():
@@ -98,6 +121,13 @@ async def start():
             content="⚠️ Vectorstore nicht verfügbar. Bitte prüfen Sie die Konfiguration."
         ).send()
         return
+    
+    # Try to initialize components - if it fails, show a warning but don't block startup
+    components_ready = ensure_components_initialized()
+    if not components_ready:
+        await cl.Message(
+            content="⚠️ API-Schlüssel fehlen - RAG-Funktionalität eingeschränkt. Bitte VOYAGE_API_KEY und OPENROUTER_API_KEY konfigurieren."
+        ).send()
     
     # Initialize session
     cl.user_session.set("conversation_history", [])
@@ -134,8 +164,9 @@ async def setup_agent(settings):
 @cl.on_message
 async def main(message: cl.Message):
     """Handle incoming messages"""
-    if not text_embedder or not retriever or not chat_generator:
-        await cl.Message(content="❌ RAG Komponenten nicht verfügbar").send()
+    # Ensure components are initialized
+    if not ensure_components_initialized():
+        await cl.Message(content="❌ RAG Komponenten nicht verfügbar - Bitte API-Schlüssel konfigurieren").send()
         return
     
     # Get conversation history and privacy setting
