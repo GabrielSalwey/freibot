@@ -4,6 +4,10 @@ voyage-embedders-haystack
 voyageai
 openrouter-haystack
 chromadb
+
+# Haystack integrations (required for both FastAPI and Chainlit)
+chroma-haystack
+aiohttp
 pypdf
 fastapi
 uvicorn[standard]
