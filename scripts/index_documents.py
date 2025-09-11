@@ -254,7 +254,7 @@ def index_pdfs(mode="full"):
             print(f"    - {error['file']}: {error['error'][:50]}...")
     
     print(f"\n✓ Vectorstore ready at: {VECTORSTORE_PATH}")
-    print(f"  Run 'python freibot.py' to start the query server")
+    print(f"  Run 'python api.py' to start the API server")
     
     return indexed > 0
 

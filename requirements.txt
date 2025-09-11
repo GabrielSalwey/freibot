@@ -22,6 +22,7 @@ colorama
 loguru
 openai
 pytest
+pytest-timeout
 
 # Chainlit for modern web interface
 chainlit

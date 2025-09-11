@@ -311,7 +311,7 @@ Examples:
         sys.exit(1)
     
     # Check if API is running (for non-health commands)
-    if args.command != "health":
+    if args.command not in ["health", "test"]:
         basic_health = {}
         try:
             response = requests.get(f"{API_BASE}/health", timeout=5)
@@ -365,9 +365,9 @@ Examples:
         
         # Build pytest command with Windows-compatible flags
         if args.type == "all":
-            cmd = ["pytest", "tests/", "-s", "--disable-warnings"]
+            cmd = ["pytest", "scripts/tests/", "-s", "--disable-warnings"]
         else:
-            cmd = ["pytest", f"tests/test_{args.type}.py", "-s", "--disable-warnings"]
+            cmd = ["pytest", f"scripts/tests/test_{args.type}.py", "-s", "--disable-warnings"]
         
         # Add verbosity flag
         if args.verbose:

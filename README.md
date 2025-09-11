@@ -121,19 +121,16 @@ curl -X POST http://localhost:8001/ask \
 ### Development Tools
 
 ```bash
-# Run API tests
-python scripts/test_api.py
-
-# Test dynamic k selection
-python scripts/test_dynamic_k.py
-
 # Manual document indexing (if needed)
 python scripts/index_documents.py
 
-# Health check
+# Health check (requires server running)
 python scripts/cli.py health
 
-# Run tests via CLI wrapper (Windows-friendly)
+# Run tests directly (in-process; no server needed)
+pytest scripts/tests -v -s
+
+# Or run tests via CLI wrapper (Windows-friendly)
 python scripts/cli.py test [all|latency|quality|retrieval|behavior|regression]
 ```
 
@@ -222,21 +219,24 @@ Currently processing 17 comprehensive PDF reports from fritz.freiburg.de includi
 ```
 freibot/
 ├── api.py                    # API server (single source of truth)
-├── freibot.py                # Deprecated shim (forwards to api.py)
 ├── webapp/
 │   └── chainlit_app.py      # Chainlit frontend (calls API over HTTP)
 ├── scripts/
-│   ├── cli.py               # CLI tool for testing (HTTP client)
+│   ├── cli.py               # CLI tool (ask/interactive/health/test)
 │   ├── index_documents.py   # Document indexing
-│   ├── test_api.py          # API tests
-│   ├── test_dynamic_k.py    # Dynamic k tests
-│   └── test_chainlit.py     # Liveness test for Chainlit + API
+│   ├── test_chainlit.py     # Liveness test for Chainlit + API
+│   └── tests/               # Pytest suite (in-process)
+│       ├── __init__.py
+│       ├── test_behavior.py
+│       ├── test_latency.py
+│       ├── test_quality.py
+│       └── test_retrieval.py
 ├── data/
 │   ├── pdfs/                # 17 Fritz Freiburg PDFs
 │   └── vectorstore/         # ChromaDB storage
 ├── requirements.txt         # Python dependencies
 ├── .env                     # API keys
-└── QUICKSTART.md           # Deprecated (merged into README)
+└── WARP.md                  # Warp quick guide
 ```
 
 Deprecated:
