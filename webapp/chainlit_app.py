@@ -1,281 +1,112 @@
 """
-Freibot Chainlit App - Simplified RAG system with streaming responses
+Freibot Chainlit App — Frontend-only client to the Freibot API.
+- Calls API /ask over HTTP
+- Simulates streaming by chunking the final answer
+- Supports privacy mode toggle (no logging on API)
 """
 
 import os
-import json
-from pathlib import Path
+import time
+import requests
 import chainlit as cl
 from dotenv import load_dotenv
-import tiktoken
-
-from haystack import Pipeline
-from haystack.components.builders import ChatPromptBuilder
-from haystack.dataclasses import ChatMessage
-from haystack_integrations.components.embedders.voyage_embedders import VoyageTextEmbedder
-from haystack_integrations.components.retrievers.chroma import ChromaEmbeddingRetriever
-from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
-from haystack.utils.auth import Secret
 
 # Load environment variables
 load_dotenv()
 
-# Configuration
-VOYAGE_MODEL = "voyage-3-large"
-LLM_MODEL = "openai/gpt-5-mini"
-VECTORSTORE_PATH = "./data/vectorstore"
-COLLECTION_NAME = "freiburg_docs_v3large"
-MAX_TOKENS = 50000
-
-# Initialize ChromaDB store
-try:
-    store = ChromaDocumentStore(
-        persist_path=VECTORSTORE_PATH,
-        collection_name=COLLECTION_NAME
-    )
-    STORE_AVAILABLE = True
-except Exception as e:
-    print(f"WARNING: Failed to initialize vectorstore: {e}")
-    store = None
-    STORE_AVAILABLE = False
-
-# Initialize tokenizer for counting
-tokenizer = tiktoken.encoding_for_model("gpt-4")
-
-def count_tokens(text: str) -> int:
-    """Count tokens in text"""
-    return len(tokenizer.encode(text))
-
-def truncate_conversation(messages: list, max_tokens: int) -> list:
-    """Keep conversation under max_tokens by removing oldest messages"""
-    if not messages:
-        return messages
-    
-    # Always keep system message if it exists
-    system_msgs = [msg for msg in messages if msg.get("role") == "system"]
-    other_msgs = [msg for msg in messages if msg.get("role") != "system"]
-    
-    total_tokens = sum(count_tokens(str(msg.get("content", ""))) for msg in messages)
-    
-    while total_tokens > max_tokens and len(other_msgs) > 1:
-        removed = other_msgs.pop(0)  # Remove oldest non-system message
-        total_tokens -= count_tokens(str(removed.get("content", "")))
-    
-    return system_msgs + other_msgs
-
-def create_rag_components():
-    """Create the Haystack RAG components"""
-    if not STORE_AVAILABLE:
-        return None, None, None
-    
-    # Create components
-    text_embedder = VoyageTextEmbedder(
-        model=VOYAGE_MODEL,
-        api_key=Secret.from_env_var("VOYAGE_API_KEY")
-    )
-    
-    retriever = ChromaEmbeddingRetriever(
-        document_store=store,
-        top_k=3
-    )
-    
-    chat_generator = OpenRouterChatGenerator(
-        api_key=Secret.from_env_var("OPENROUTER_API_KEY"),
-        model=LLM_MODEL
-    )
-    
-    return text_embedder, retriever, chat_generator
-
-# Initialize components lazily (will be created when needed)
-text_embedder, retriever, chat_generator = None, None, None
-
-def ensure_components_initialized():
-    """Initialize components if not already done"""
-    global text_embedder, retriever, chat_generator
-    
-    if text_embedder is None:
-        # Check if environment variables are available
-        voyage_key = os.getenv("VOYAGE_API_KEY")
-        openrouter_key = os.getenv("OPENROUTER_API_KEY")
-        
-        if not voyage_key or not openrouter_key:
-            print("WARNING: Missing API keys - components will not be initialized")
-            return False
-            
-        try:
-            text_embedder, retriever, chat_generator = create_rag_components()
-            print("✅ RAG components initialized successfully")
-            return True
-        except Exception as e:
-            print(f"❌ Failed to initialize components: {e}")
-            return False
-    
-    return True
+API_BASE = os.getenv("FREIBOT_API_BASE", "http://localhost:8001")
 
 @cl.on_chat_start
 async def start():
-    """Initialize chat session"""
-    if not STORE_AVAILABLE:
-        await cl.Message(
-            content="⚠️ Vectorstore nicht verfügbar. Bitte prüfen Sie die Konfiguration."
-        ).send()
-        return
-    
-    # Try to initialize components - if it fails, show a warning but don't block startup
-    components_ready = ensure_components_initialized()
-    if not components_ready:
-        await cl.Message(
-            content="⚠️ API-Schlüssel fehlen - RAG-Funktionalität eingeschränkt. Bitte VOYAGE_API_KEY und OPENROUTER_API_KEY konfigurieren."
-        ).send()
-    
-    # Initialize session
-    cl.user_session.set("conversation_history", [])
+    """Initialize chat session and show API status."""
+    cl.user_session.set("session_id", f"cl_{int(time.time())}")
     cl.user_session.set("privacy_mode", False)
-    
-    # Welcome message
-    await cl.Message(
-        content="""🏛️ **Willkommen beim Freibot!**
 
-Ich bin Ihr KI-Assistent für Fragen zu Freiburg im Breisgau. Ich kann Ihnen helfen mit:
-- Stadtdaten und Statistiken
-- Bevölkerungsinformationen  
-- Verkehr und Transport
-- Umwelt und Nachhaltigkeit
-- Bürgerzufriedenheit
+    # Check API status
+    try:
+        h = requests.get(f"{API_BASE}/health", timeout=5)
+        s = requests.get(f"{API_BASE}/stats", timeout=5)
+        status = h.json() if h.ok else {"status": "unknown"}
+        stats = s.json() if s.ok else {}
+        await cl.Message(
+            content=(
+                f"🔌 API: {status.get('status', 'unknown')} | "
+                f"Docs: {stats.get('chunk_count', '?')} | "
+                f"Model: {stats.get('llm_model', '?')}\n\n"
+                "Stellen Sie Ihre Frage – ich nutze die API im Hintergrund."
+            )
+        ).send()
+    except Exception as e:
+        await cl.Message(content=f"❌ API nicht erreichbar: {e}").send()
 
-Stellen Sie mir gerne Ihre Frage auf Deutsch oder Englisch!
-
-*Datenschutz: Aktivieren Sie den Privatmodus in den Einstellungen für maximale Privatsphäre.*
-        """
-    ).send()
+    # Chat settings UI (Privacy Mode toggle)
+    await cl.ChatSettings([
+        cl.input_widget.Switch(
+            id="Privacy Mode",
+            label="Privatmodus",
+            initial=False,
+            description="Deaktiviert Protokollierung auf API-Seite"
+        )
+    ]).send()
 
 @cl.on_settings_update
-async def setup_agent(settings):
-    """Handle settings updates"""
-    privacy_mode = settings.get("Privacy Mode", False)
-    cl.user_session.set("privacy_mode", privacy_mode)
-    
-    if privacy_mode:
-        await cl.Message(content="🔒 Privatmodus aktiviert").send()
-    else:
-        await cl.Message(content="🔓 Privatmodus deaktiviert").send()
+async def on_settings(settings):
+    """Update privacy mode from settings."""
+    cl.user_session.set("privacy_mode", settings.get("Privacy Mode", False))
 
 @cl.on_message
-async def main(message: cl.Message):
-    """Handle incoming messages"""
-    # Ensure components are initialized
-    if not ensure_components_initialized():
-        await cl.Message(content="❌ RAG Komponenten nicht verfügbar - Bitte API-Schlüssel konfigurieren").send()
-        return
-    
-    # Get conversation history and privacy setting
-    history = cl.user_session.get("conversation_history", [])
-    privacy_mode = cl.user_session.get("privacy_mode", False)
-    
-    # Add current message to history
-    history.append({"role": "user", "content": message.content})
-    
-    # Truncate if too long
-    history = truncate_conversation(history, MAX_TOKENS)
-    
-    # Prepare streaming response
+async def on_message(message: cl.Message):
+    """Forward user message to the API and simulate streaming of the response."""
+    payload = {
+        "question": message.content,
+        "session_id": cl.user_session.get("session_id"),
+        "privacy_mode": cl.user_session.get("privacy_mode", False)
+    }
+
     msg = cl.Message(content="")
     await msg.send()
-    
+
     try:
-        # 1. Embed the query
-        embedding_result = text_embedder.run(text=message.content)
-        query_embedding = embedding_result["embedding"]
-        
-        # 2. Retrieve relevant documents
-        retrieval_result = retriever.run(query_embedding=query_embedding)
-        documents = retrieval_result["documents"]
-        
-        # 3. Create context from documents
-        context = ""
-        if documents:
-            context = "\n\n".join([doc.text for doc in documents[:3]])
-        
-        # 4. Create system message with context
-        system_message = f"""Du bist ein hilfsvoller Assistent für die Stadt Freiburg im Breisgau. 
-Beantworte Fragen basierend auf den folgenden Dokumenten:
+        r = requests.post(f"{API_BASE}/ask", json=payload, timeout=120)
+        r.raise_for_status()
+        data = r.json()
+        answer = data.get("answer", "")
 
-{context}
+        # Simulate streaming by chunking the final answer
+        chunk_size = 300
+        for i in range(0, len(answer), chunk_size):
+            await msg.stream_token(answer[i:i+chunk_size])
 
-Antworte auf Deutsch, außer der Nutzer fragt explizit auf Englisch.
-Gib immer die Quelle deiner Informationen an."""
-        
-        # 5. Prepare chat messages
-        chat_messages = [ChatMessage.from_system(system_message)]
-        for msg_item in history:
-            if msg_item["role"] == "user":
-                chat_messages.append(ChatMessage.from_user(msg_item["content"]))
-            elif msg_item["role"] == "assistant":
-                chat_messages.append(ChatMessage.from_assistant(msg_item["content"]))
-        
-        # 6. Generate response (non-streaming for simplicity)
-        generation_kwargs = {
-            "extra_headers": {
-                "HTTP-Referer": "https://freibot.app",
-                "X-Title": "Freibot"
-            }
-        }
-        
-        if privacy_mode:
-            generation_kwargs["extra_headers"]["X-Private"] = "true"
-        
-        response_result = chat_generator.run(
-            messages=chat_messages,
-            generation_kwargs=generation_kwargs
-        )
-        
-        # 7. Stream the response
-        if "replies" in response_result:
-            response_content = response_result["replies"][0].text
-            
-            # Stream character by character for visual effect
-            for char in response_content:
-                await msg.stream_token(char)
-            
-            # Add to conversation history
-            history.append({"role": "assistant", "content": response_content})
-            cl.user_session.set("conversation_history", history)
-            
-            # Add sources if available
-            if documents:
-                source_text = "\n\n**Quellen:**\n"
-                for i, doc in enumerate(documents[:3], 1):
-                    source_text += f"{i}. {doc.meta.get('source', 'Unbekannt')}\n"
-                await msg.stream_token(source_text)
-        
+        # Append sources if present
+        sources = data.get("sources", [])
+        if sources:
+            await msg.stream_token("\n\nQuellen:\n")
+            for s in sources:
+                label = s.get("document", "Unbekannt")
+                page = s.get("page")
+                await msg.stream_token(f"- {label}{' (S.' + str(page) + ')' if page else ''}\n")
+
         await msg.update()
-        
     except Exception as e:
-        error_msg = f"❌ Fehler beim Verarbeiten der Anfrage: {str(e)}"
-        await cl.Message(content=error_msg).send()
+        await cl.Message(content=f"❌ Fehler: {e}").send()
 
 @cl.author_rename
 def rename(orig_author: str):
-    """Rename message authors"""
     if orig_author == "Assistant":
         return "Freibot"
     return orig_author
 
-# Chat settings
+# Chat settings UI (Privacy Mode toggle)
 @cl.on_chat_start
 async def setup_settings():
-    """Setup chat settings"""
-    settings = await cl.ChatSettings(
-        [
-            cl.input_widget.Switch(
-                id="Privacy Mode",
-                label="Privatmodus",
-                initial=False,
-                description="Aktiviert erweiterten Datenschutz"
-            )
-        ]
-    ).send()
+    await cl.ChatSettings([
+        cl.input_widget.Switch(
+            id="Privacy Mode",
+            label="Privatmodus",
+            initial=False,
+            description="Deaktiviert Protokollierung auf API-Seite"
+        )
+    ]).send()
 
 if __name__ == "__main__":
     cl.run()

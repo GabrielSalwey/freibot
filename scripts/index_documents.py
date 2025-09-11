@@ -1,7 +1,11 @@
 """
-Document indexing script for Freibot
-Processes PDFs and creates vector embeddings for ChromaDB
-Run this before starting the main freibot.py server
+Freibot document indexing — PDF → embeddings (ChromaDB + VoyageAI).
+
+Processes PDFs in data/pdfs into embeddings and writes them to the local ChromaDB
+vectorstore used by the API.
+
+Run this before starting the API (api.py) if no vectorstore exists, or use
+--mode append to add newly added PDFs without clearing existing data.
 """
 
 import os
@@ -36,7 +40,7 @@ CHUNK_OVERLAP = 1                              # Overlap between chunks
 CHUNK_THRESHOLD = 0                            # Minimum chunk size
 
 # Model configuration
-EMBEDDING_MODEL = "voyage-3-large"             # Voyage embedding model
+EMBEDDING_MODEL = "voyage-3-large"             # Voyage embedding model (512-dim, int8)
 INPUT_TYPE = "document"                        # Input type for embeddings
 
 # Rate limiting (VoyageAI limits: 2000 RPM, 20M TPM)
@@ -190,7 +194,7 @@ def index_pdfs(mode="full"):
     print(f"  Method: {CHUNK_METHOD}")
     print(f"  Size: {CHUNK_SIZE} {CHUNK_METHOD}s per chunk")
     print(f"  Overlap: {CHUNK_OVERLAP} {CHUNK_METHOD}(s)")
-    print(f"  Model: {EMBEDDING_MODEL}")
+    print(f"  Model: {EMBEDDING_MODEL} (512-dim, int8)")
     
     # Build pipeline
     print(f"\nBuilding indexing pipeline...")

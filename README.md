@@ -22,7 +22,7 @@ Building a scalable AI assistant that democratizes access to all Freiburg-specif
 
 **Live Features**:
 - ✅ PDF ingestion and intelligent chunking (3776 documents indexed)
-- ✅ German-optimized embeddings with VoyageAI
+- ✅ German-optimized embeddings with VoyageAI (voyage-3-large, 512-dim, int8)
 - ✅ Conversational web interface with privacy mode
 - ✅ Simplified single-file architecture (279 lines)
 - ✅ CLI tools for testing and interaction
@@ -57,7 +57,8 @@ As a member of "Fröhliches Freiburg", I believe city policies should be grounde
 ### Tech Stack
 - **Backend**: Python 3.11+, FastAPI, Haystack 2.17
 - **Vector Database**: ChromaDB (embedded, persistent local storage)
-- **LLMs**: OpenRouter (gpt-4o-mini), VoyageAI (voyage-3-large embeddings)
+- **LLMs**: OpenRouter (gpt-4o-mini)
+- **Embeddings**: VoyageAI voyage-3-large (512-dim, int8)
 - **Frontend**: HTML/JS/CSS web interface (vanilla)
 - **Infrastructure**: Single service, no Docker required
 - **Data Processing**: PyPDF processing via Haystack components
@@ -93,16 +94,18 @@ VOYAGE_API_KEY=your_voyage_api_key
 OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
-4. Start the server:
+4. Start the API server:
 ```bash
-python freibot.py
-# Server runs at http://localhost:8001
+python api.py
+# API runs at http://localhost:8001
 ```
 
 5. Use the system:
 ```bash
-# Web interface
-# Visit http://localhost:8001
+# Start Chainlit frontend (in a separate terminal)
+cd webapp
+chainlit run chainlit_app.py
+# Visit http://localhost:8000
 
 # CLI tool
 python scripts/cli.py ask "Wie viele Einwohner hat Freiburg?"
@@ -129,7 +132,32 @@ python scripts/index_documents.py
 
 # Health check
 python scripts/cli.py health
+
+# Run tests via CLI wrapper (Windows-friendly)
+python scripts/cli.py test [all|latency|quality|retrieval|behavior|regression]
 ```
+
+### Features
+
+- Dynamic retrieval: Automatically selects 0–3 documents based on query type
+- Session management: Keeps the last 10 exchanges per session_id
+- Privacy mode: Optional, disables logging
+- German-optimized retrieval and prompts
+- Source citations: Returns relevant document excerpts with each answer
+
+### Performance
+
+- Startup: ~30 seconds (including vectorstore init)
+- Simple queries: ~5–10 seconds
+- Complex queries: ~15–20 seconds
+- Documents indexed: 3,776 from 17 PDFs
+
+### Troubleshooting
+
+- Windows encoding: Use a UTF-8 terminal; the CLI wraps stdout/stderr as UTF-8
+- Rate limiting: VoyageAI may throttle without a payment method; the system includes basic protections
+- Memory usage: ChromaDB keeps embeddings in memory (~2GB for 3,776 chunks)
+- Deprecation warnings: FastAPI on_event warnings are expected and harmless
 
 ## 📊 Data Sources
 
@@ -193,20 +221,26 @@ Currently processing 17 comprehensive PDF reports from fritz.freiburg.de includi
 
 ```
 freibot/
-├── freibot.py                 # Main API server (279 lines)
-├── web.py                     # Web interface (292 lines)
+├── api.py                    # API server (single source of truth)
+├── freibot.py                # Deprecated shim (forwards to api.py)
+├── webapp/
+│   └── chainlit_app.py      # Chainlit frontend (calls API over HTTP)
 ├── scripts/
-│   ├── cli.py                 # CLI tool for testing
-│   ├── index_documents.py     # Document indexing
-│   ├── test_api.py           # API tests
-│   └── test_dynamic_k.py     # Dynamic k tests
+│   ├── cli.py               # CLI tool for testing (HTTP client)
+│   ├── index_documents.py   # Document indexing
+│   ├── test_api.py          # API tests
+│   ├── test_dynamic_k.py    # Dynamic k tests
+│   └── test_chainlit.py     # Liveness test for Chainlit + API
 ├── data/
-│   ├── pdfs/                 # 17 Fritz Freiburg PDFs
-│   └── vectorstore/          # ChromaDB storage
-├── requirements.txt          # Python dependencies
-├── .env                      # API keys
-└── QUICKSTART.md            # Usage documentation
+│   ├── pdfs/                # 17 Fritz Freiburg PDFs
+│   └── vectorstore/         # ChromaDB storage
+├── requirements.txt         # Python dependencies
+├── .env                     # API keys
+└── QUICKSTART.md           # Deprecated (merged into README)
 ```
+
+Deprecated:
+- freibot.py — kept as a shim to forward to api.py for compatibility
 
 ## 👥 Team & Community
 

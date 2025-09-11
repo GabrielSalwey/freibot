@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Freibot CLI - Command line interface for Freibot API
-Simple tool for testing and interacting with the Freibot system
+Freibot CLI — Test and interact with the Freibot API.
 
-Usage: python scripts/cli.py ask "Your question"
-       python scripts/cli.py interactive
-       python scripts/cli.py health
+Commands:
+- ask "QUESTION" [--top-k N] [--json]
+- interactive
+- health [--json]
+- test [all|latency|quality|retrieval|behavior|regression] [-v]
+
+Notes:
+- API base: FREIBOT_API_BASE (default http://localhost:8001)
+- --top-k overrides retrieval docs per request (0 disables retrieval)
 """
 
 import argparse
@@ -27,7 +32,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # API Configuration
-API_BASE = "http://localhost:8001"
+API_BASE = os.getenv("FREIBOT_API_BASE", "http://localhost:8001")
 TIMEOUT = 30
 
 class TestClient:
@@ -37,13 +42,15 @@ class TestClient:
         self.api_base = api_base or API_BASE
         self.timeout = timeout or TIMEOUT
     
-    def ask(self, question: str, session_id: Optional[str] = None, privacy_mode: bool = False) -> dict:
+    def ask(self, question: str, session_id: Optional[str] = None, privacy_mode: bool = False, top_k: Optional[int] = None) -> dict:
         """Send a question using the existing ask_question function."""
         payload = {"question": question}
         if session_id is not None:
             payload["session_id"] = session_id
         if privacy_mode:
             payload["privacy_mode"] = privacy_mode
+        if top_k is not None:
+            payload["top_k"] = top_k
         
         try:
             response = requests.post(
@@ -76,12 +83,14 @@ class TestClient:
         except Exception as e:
             return {"error": str(e)}
 
-def ask_question(question: str, session_id: Optional[str] = None) -> dict:
+def ask_question(question: str, session_id: Optional[str] = None, top_k: Optional[int] = None) -> dict:
     """Send a question to the Freibot API."""
     try:
         payload = {"question": question}
         if session_id is not None:
             payload["session_id"] = session_id
+        if top_k is not None:
+            payload["top_k"] = top_k
         
         response = requests.post(
             f"{API_BASE}/ask",
@@ -91,7 +100,7 @@ def ask_question(question: str, session_id: Optional[str] = None) -> dict:
         response.raise_for_status()
         return response.json()
     except requests.exceptions.ConnectionError:
-        return {"error": "Cannot connect to Freibot. Is it running? (python freibot.py)"}
+        return {"error": "Cannot connect to Freibot. Is it running? (python api.py)"}
     except requests.exceptions.Timeout:
         return {"error": f"Request timed out after {TIMEOUT} seconds"}
     except Exception as e:
@@ -203,7 +212,7 @@ def health_check() -> dict:
             if response.status_code == 200:
                 health["voyage"] = {
                     "status": "healthy",
-                    "details": {"model": "voyage-3-large"}
+                    "details": {"model": "voyage-3-large (512-dim, int8)"}
                 }
             else:
                 health["voyage"] = {
@@ -278,6 +287,7 @@ Examples:
     # Ask command
     ask_parser = subparsers.add_parser("ask", help="Ask a single question")
     ask_parser.add_argument("question", help="Question to ask")
+    ask_parser.add_argument("--top-k", type=int, default=None, help="Override retrieval k (0 for no retrieval)")
     ask_parser.add_argument("--json", action="store_true", help="Output as JSON")
     
     # Interactive command
@@ -310,12 +320,12 @@ Examples:
             pass
         
         if basic_health.get("status") != "healthy":
-            print("ERROR: Freibot API is not running. Start it with: python freibot.py")
+            print("ERROR: Freibot API is not running. Start it with: python api.py")
             sys.exit(1)
     
     # Execute commands
     if args.command == "ask":
-        result = ask_question(args.question)
+        result = ask_question(args.question, top_k=args.top_k)
         if args.json:
             print(json.dumps(result, indent=2, ensure_ascii=False))
         else:
