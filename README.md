@@ -211,16 +211,16 @@ freibot/
 ## 👥 Team & Community
 
 **Project Lead**: Gabriel (Gabe)
-- Master in Biology, focusing on AI alignment and civic tech
+- Master in Biology, focusing on AI alignment
 - Member of Fröhliches Freiburg and EA Freiburg
 
 **Contributors**:
 - Darius: Physics/CS, Quantum ML background
+- you!
 
 **Community Partners**:
 - Fröhliches Freiburg
 - Effective Altruism Freiburg
-- (Seeking: Stadt Freiburg Amt für Digitales)
 
 ## 📄 License
 
