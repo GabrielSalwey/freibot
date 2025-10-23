@@ -166,13 +166,14 @@ Frage: {{ question }}
 Antwort (auf Deutsch, mit Quellenangaben [1], [2] etc.):"""
 
     p.add_component("prompt", ChatPromptBuilder(
-        template=[ChatMessage.from_user(template)]
+        template=[ChatMessage.from_user(template)],
+        required_variables=["documents", "question"]
     ))
 
     p.add_component("llm", OpenRouterChatGenerator(
         api_key=Secret.from_token(os.getenv("OPENROUTER_API_KEY")),
         model=LLM_MODEL,
-        generation_kwargs={"temperature": 0.1, "max_tokens": 300}
+        generation_kwargs={"temperature": 0.1}
     ))
 
     # Connections

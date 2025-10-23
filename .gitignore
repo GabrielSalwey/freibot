@@ -32,6 +32,10 @@ Thumbs.db
 # Project specific
 *.log
 *.pid
+data/vectorstore/
+webapp/data/vectorstore/
+vectorstore/
+conversation_log.jsonl
 
 # Jupyter Notebook
 .ipynb_checkpoints

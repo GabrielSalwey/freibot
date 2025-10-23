@@ -96,17 +96,5 @@ def rename(orig_author: str):
         return "Freibot"
     return orig_author
 
-# Chat settings UI (Privacy Mode toggle)
-@cl.on_chat_start
-async def setup_settings():
-    await cl.ChatSettings([
-        cl.input_widget.Switch(
-            id="Privacy Mode",
-            label="Privatmodus",
-            initial=False,
-            description="Deaktiviert Protokollierung auf API-Seite"
-        )
-    ]).send()
-
 if __name__ == "__main__":
     cl.run()

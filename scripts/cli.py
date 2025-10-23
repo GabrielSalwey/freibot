@@ -83,28 +83,12 @@ class TestClient:
         except Exception as e:
             return {"error": str(e)}
 
+# Create global client instance for reuse
+_client = TestClient()
+
 def ask_question(question: str, session_id: Optional[str] = None, top_k: Optional[int] = None) -> dict:
     """Send a question to the Freibot API."""
-    try:
-        payload = {"question": question}
-        if session_id is not None:
-            payload["session_id"] = session_id
-        if top_k is not None:
-            payload["top_k"] = top_k
-        
-        response = requests.post(
-            f"{API_BASE}/ask",
-            json=payload,
-            timeout=TIMEOUT
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.ConnectionError:
-        return {"error": "Cannot connect to Freibot. Is it running? (python api.py)"}
-    except requests.exceptions.Timeout:
-        return {"error": f"Request timed out after {TIMEOUT} seconds"}
-    except Exception as e:
-        return {"error": str(e)}
+    return _client.ask(question, session_id=session_id, top_k=top_k)
 
 
 def health_check() -> dict:
@@ -136,15 +120,13 @@ def health_check() -> dict:
     
     # Check vectorstore (via stats endpoint)
     try:
-        response = requests.get(f"{API_BASE}/stats", timeout=5)
-        response.raise_for_status()
-        data = response.json()
-        doc_count = data.get("chunk_count", 0)
+        stats = _client.stats()
+        doc_count = stats.get("chunk_count", 0)
         health["vectorstore"] = {
             "status": "healthy" if doc_count > 0 else "empty",
             "details": {
                 "chunks": doc_count,
-                "pdfs": data.get("pdf_count", 0)
+                "pdfs": stats.get("pdf_count", 0)
             }
         }
     except Exception as e:
