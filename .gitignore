@@ -47,3 +47,6 @@ docker-compose.override.yml
 
 # Claude configuration
 .claude/
+
+# Documentation
+freibot_docs/

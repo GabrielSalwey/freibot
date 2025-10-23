@@ -24,6 +24,10 @@ import requests
 import io
 from dotenv import load_dotenv
 
+# Import centralized configuration
+sys.path.insert(0, str(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from config import VOYAGE_MODEL
+
 # Load environment variables
 load_dotenv()
 
@@ -188,13 +192,13 @@ def health_check() -> dict:
             response = requests.post(
                 "https://api.voyageai.com/v1/embeddings",
                 headers=headers,
-                json={"input": ["test"], "model": "voyage-3-large"},
+                json={"input": ["test"], "model": VOYAGE_MODEL},
                 timeout=10
             )
             if response.status_code == 200:
                 health["voyage"] = {
                     "status": "healthy",
-                    "details": {"model": "voyage-3-large (512-dim, int8)"}
+                    "details": {"model": f"{VOYAGE_MODEL}"}
                 }
             else:
                 health["voyage"] = {

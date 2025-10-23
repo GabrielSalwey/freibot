@@ -1,6 +1,6 @@
 # WARP Guide (Freibot)
 
-A concise guide for working with this repo in Warp.
+Quick reference for Freibot development (Qdrant + Metadata Filtering).
 
 ## Quick Commands
 
@@ -20,11 +20,13 @@ python scripts/cli.py test [all|latency|quality|retrieval|behavior|regression] -
 ```
 
 ## Tests (in-process)
+
 - Tests run in-process against the FastAPI app using fastapi.testclient.TestClient.
 - You do NOT need to run the server to execute tests.
 - Some tests will be skipped automatically if prerequisites are missing.
 
 Commands:
+
 ```bash
 # All tests
 pytest scripts/tests -v -s
@@ -37,11 +39,13 @@ python scripts/cli.py test behavior -v
 ```
 
 Prerequisites for full coverage:
+
 - .env with VOYAGE_API_KEY and OPENROUTER_API_KEY
 - Indexed vectorstore:
   python scripts/index_documents.py
 
 Skip behavior:
+
 - If embeddings or documents are missing, retrieval-heavy tests are auto-skipped.
 
 ## API Snippets
@@ -57,11 +61,15 @@ curl -X POST http://localhost:8001/ask \
 ```
 
 ## Notes
-- FREIBOT_API_BASE can point the CLI/Chainlit to a remote API (default http://localhost:8001)
+
+- Qdrant must be running: `docker-compose up -d`
+- Metadata filtering: "2024 Sozialbericht", "nur Wahlberichte" work automatically
 - Retrieval is dynamic (0–3). Override per request with `--top-k N` or `{ "top_k": N }`
 
-## Architecture (at a glance)
-- FastAPI app in `api.py` using Haystack 2.17 + Voyage embeddings + Chroma vectorstore
+## Architecture
+
+- FastAPI app in `api.py` using Haystack 2.17 + Voyage embeddings + Qdrant vectorstore
+- LLM-powered metadata extraction (year, type, topics) in `scripts/extract_metadata.py`
 - Frontend: Chainlit (`webapp/chainlit_app.py`) talks to API over HTTP
 - Scripts in `scripts/` for indexing and tests
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-LLM-based metadata extraction from PDF content.
-Extracts year, document_type, topics, etc. for Qdrant filtering.
+LLM-based metadata extraction from PDFs for Qdrant filtering.
+Extracts: year, document_type, title, topics
 """
 import os
 import json

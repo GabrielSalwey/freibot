@@ -1,198 +1,182 @@
-# Freibot 🤖🔥
-### An AI Assistant for Freiburg - Fast and for Frei
+# Freibot 🤖
+
+### KI-Sprachassistent für Freiburg – Transparent, Offen, Für Alle
 
 ## 🌅 Vision
 
-Building a scalable AI assistant that democratizes access to all Freiburg-specific knowledge - from city statistics and news to administrative procedures and local services. Our goal is to break down information barriers, especially for foreigners and underrepresented communities, making city data not just accessible but actionable through intelligent analysis and interpretation.
+Ein KI-Sprachassistent für digitale Veröffentlichungen der Stadt Freiburg, der verständlichen und barrierefreien Zugang zu politischen Informationen ermöglicht. Demokratisierung von Stadtdaten durch Open Source – für Bürger:innen, Vereine, Parteien, Journalist:innen und Stadträt:innen.
 
-## 🎯 Project Mission
+## 🎯 Mission
 
-**Short-term**: Transform fritz.freiburg.de's comprehensive but inaccessible survey data into a conversational AI interface using Retrieval-Augmented Generation (RAG).
+**Kurzfristig**: FRITZ-Statistikdaten (fritz.freiburg.de) über RAG-System zugänglich machen.
 
-**Long-term**: Create a comprehensive digital assistant for Freiburg that can:
-- Answer questions about city statistics, policies, and services
-- Help with administrative procedures (Bürgeramt, KFZ-Zulassung, etc.)
-- Analyze correlations and visualize data
-- Provide multilingual support for international residents
-- Eventually assist with paperwork and form completion
+**Mittelfristig**: Integration weiterer Open-Data-Plattformen:
 
-## 🚀 Current Status
+- **RIS** (Rats- und Bürgerinformationssystem)
+- **FreiGIS** (Geodaten-Portal)
+- **Amtsblatt** (E-Paper)
+- **Kataster** (Wärme, Flächennutzung)
 
-**MVP Achieved**: Successfully built a working RAG system that ingests 17 PDF reports from Fritz Freiburg and provides accurate, conversational answers about city data.
+**Langfristig**: Vollständiger Informationsassistent für Verwaltung und Bürger:innen mit Faktenchecker-Funktion für politische Aussagen.
+
+## 🚀 Status (Oktober 2025)
+
+**✅ Migration abgeschlossen**: ChromaDB → Qdrant mit Metadaten-Filterung
 
 **Live Features**:
-- ✅ PDF ingestion and intelligent chunking (3776 documents indexed)
-- ✅ German-optimized embeddings with VoyageAI (voyage-3-large, 512-dim, int8)
-- ✅ Conversational web interface with privacy mode
-- ✅ Simplified single-file architecture (279 lines)
-- ✅ CLI tools for testing and interaction
-- ✅ Session management and conversation history
-- ✅ Dynamic document retrieval (0-3 docs based on query type)
 
-## 💡 Why This Matters - Real World Impact
+- ✅ Qdrant-Vektordatenbank (Docker, production-ready, localhost:6333)
+- ✅ 2713 Dokumente mit Metadaten (Jahr, Typ, Titel, Topics)
+- ✅ Natürlichsprachige Filter ("2024 Sozialbericht", "nur Wahlberichte")
+- ✅ LLM-basierte Metadaten-Extraktion (17 PDFs: 7 Wahlberichte, 8 Statistiken, 1 Sozialbericht, 2018-2025)
+- ✅ German-optimized embeddings (VoyageAI voyage-3-large, 1024-dim)
+- ✅ Chainlit Web-Interface + CLI
+- ✅ Enhanced Citations (Jahr, Typ, Titel in Quellenangaben)
 
-As a member of "Fröhliches Freiburg", I believe city policies should be grounded in evidence. But this goes beyond politics. Here's who we're building for:
+## 💡 Warum Freibot?
 
-**For Immigrants & International Students**: 
-- "How do I register my car in Freiburg?" → Step-by-step KFZ-Zulassung guidance
-- "Which Stadtteile are affordable for students?" → Real rent statistics by district
-- Navigate German bureaucracy without perfect German skills
+**Problem**: Freiburg hat mehrere Open-Data-Plattformen (FRITZ, RIS, FreiGIS), aber keine zentrale Möglichkeit, einem Chatbot Fragen zu stellen. Bürgeranfragen müssen manuell beantwortet werden – das bindet Zeit und Ressourcen.
 
-**For Journalists & Activists**:
-- Quick fact-checking during city council meetings
-- "What percentage of Vauban residents bike to work?" → Instant statistics with sources
-- Evidence-based arguments for policy proposals
+**Lösung**: Technische, quelloffene KI-Lösung von ehrenamtlichen IT-Expert:innen.
 
-**For Local Businesses**:
-- "Which districts have the most young families?" → Demographic insights for location planning
-- "How has foot traffic changed in the Altstadt?" → Economic indicators for decision making
+**Nutzen für**:
 
-**For Every Freiburger**:
-- "Why is my street being renovated again?" → Access to urban planning data
-- "How does my district compare in terms of green space?" → Quality of life metrics
-- Making democracy tangible through accessible information
+- **Bürger:innen**: Barrierefreier Zugang zu Stadtdaten ohne E-Mail/Telefon
+- **OB-Kandidat:innen & Parteien**: Recherche-Tool für Wahlkampf (OB-Wahl Juni 2026)
+- **Journalist:innen**: Faktenchecker für politische Aussagen
+- **Verwaltung**: Entlastung durch automatisierte Auskünfte
+- **Stadträt:innen & NGOs**: Schneller Zugriff auf Beschlüsse und Statistiken
+
+**Open Government**: Freiburg hat 2014 Open-Data-Strategie beschlossen. Freibot setzt diese um – inspiriert von **KI Parla** (City Lab Berlin).
 
 ## 🛠️ Technical Architecture
 
 ### Tech Stack
+
 - **Backend**: Python 3.11+, FastAPI, Haystack 2.17
-- **Vector Database**: ChromaDB (embedded, persistent local storage)
-- **LLMs**: OpenRouter (gpt-4o-mini)
-- **Embeddings**: VoyageAI voyage-3-large (512-dim, int8)
-- **Frontend**: HTML/JS/CSS web interface (vanilla)
-- **Infrastructure**: Single service, no Docker required
-- **Data Processing**: PyPDF processing via Haystack components
+- **Vector Database**: Qdrant (Docker, localhost:6333)
+- **LLMs**: OpenRouter (gpt-4o-mini) für Chat + Metadaten-Extraktion
+- **Embeddings**: VoyageAI voyage-3-large (1024-dim)
+- **Frontend**: Chainlit Web-Interface
+- **Infrastructure**: Docker (Qdrant), Python (App)
+- **Metadata**: LLM-powered extraction (Jahr, Typ, Topics)
 
 ### Architecture Principles
-- **KISS & YAGNI**: Single-file main application (279 lines)
-- **Direct component usage**: No abstractions over Haystack
-- **Privacy-first**: Optional privacy mode, DSGVO-compliant logging
-- **Organized scripts**: Separated CLI and testing tools
+
+- **KISS & YAGNI**: Direkte Haystack-Komponenten, keine Abstraktionen
+- **Open Source**: Inspiriert von KI Parla (City Lab Berlin)
+- **Privacy-first**: Privacy Mode, DSGVO-konform
+- **Production-ready**: Qdrant statt ChromaDB für Skalierbarkeit
 
 ## 🏃 Quick Start
 
 ### Prerequisites
+
 - Python 3.11+
-- API Keys: VoyageAI (embeddings) and OpenRouter (LLM)
+- Docker (für Qdrant)
+- API Keys: VoyageAI, OpenRouter
 
 ### Installation
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/freibot.git
-cd freibot
+1. **Clone und Install**:
+   
+   ```bash
+   git clone https://github.com/yourusername/freibot.git
+   cd freibot
+   pip install -r requirements.txt
+   ```
+
+2. **Start Qdrant** (Docker):
+   
+   ```bash
+   docker-compose up -d
+   ```
+
+3. **Create `.env`**:
+   
+   ```bash
+   VOYAGE_API_KEY=your_key
+   OPENROUTER_API_KEY=your_key
+   ```
+
+4. **Index documents** (nur beim ersten Mal):
+   
+   ```bash
+   python scripts/index_documents.py
+   ```
+
+5. **Run**:
+   
+   ```bash
+   # API (localhost:8001)
+   python api.py
+   ```
+
+# Chainlit UI (localhost:8000)
+
+cd webapp && chainlit run chainlit_app.py
+
+# CLI
+
+python scripts/cli.py ask "Was sagt der 2024 Sozialbericht?"
+
 ```
-
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-3. Create `.env` file:
-```bash
-VOYAGE_API_KEY=your_voyage_api_key
-OPENROUTER_API_KEY=your_openrouter_api_key
-```
-
-4. Start the API server:
-```bash
-python api.py
-# API runs at http://localhost:8001
-```
-
-5. Use the system:
-```bash
-# Start Chainlit frontend (in a separate terminal)
-cd webapp
-chainlit run chainlit_app.py
-# Visit http://localhost:8000
-
-# CLI tool
-python scripts/cli.py ask "Wie viele Einwohner hat Freiburg?"
-python scripts/cli.py interactive
-python scripts/cli.py benchmark
-
-# Direct API
-curl -X POST http://localhost:8001/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question": "Lärmschutzverordnung Altstadt"}'
-```
-
-### Development Tools
-
-```bash
-# Manual document indexing (if needed)
-python scripts/index_documents.py
-
-# Health check (requires server running)
-python scripts/cli.py health
-
-# Run tests directly (in-process; no server needed)
-pytest scripts/tests -v -s
-
-# Or run tests via CLI wrapper (Windows-friendly)
-python scripts/cli.py test [all|latency|quality|retrieval|behavior|regression]
-```
-
 ### Features
 
-- Dynamic retrieval: Automatically selects 0–3 documents based on query type
-- Session management: Keeps the last 10 exchanges per session_id
-- Privacy mode: Optional, disables logging
-- German-optimized retrieval and prompts
-- Source citations: Returns relevant document excerpts with each answer
+- **Metadata filtering**: "2024 Sozialbericht", "nur Wahlberichte" auto-filter by year/type
+- **Dynamic retrieval**: 0-3 docs based on query complexity
+- **Enhanced citations**: Year, type, title in source references
+- **Session management**: Last 10 exchanges per session
+- **Privacy mode**: Optional logging disable
 
 ### Performance
 
-- Startup: ~30 seconds (including vectorstore init)
-- Simple queries: ~5–10 seconds
-- Complex queries: ~15–20 seconds
-- Documents indexed: 3,776 from 17 PDFs
+- Startup: ~10s (Qdrant connection)
+- Queries: 5-15s (filtered queries faster)
+- Indexed: 2713 documents from 17 PDFs
 
 ### Troubleshooting
 
-- Windows encoding: Use a UTF-8 terminal; the CLI wraps stdout/stderr as UTF-8
-- Rate limiting: VoyageAI may throttle without a payment method; the system includes basic protections
-- Memory usage: ChromaDB keeps embeddings in memory (~2GB for 3,776 chunks)
-- Deprecation warnings: FastAPI on_event warnings are expected and harmless
+- **Qdrant not running**: `docker ps` to check, restart with command above
+- **No documents**: Run `python scripts/index_documents.py`
+- **Rate limits**: VoyageAI throttling handled by indexer
 
-## 📊 Data Sources
+## 📊 Datenquellen
 
-Currently processing 17 comprehensive PDF reports from fritz.freiburg.de including:
-- Demographic statistics and population data
-- Economic indicators and employment surveys
-- Environmental data and sustainability metrics
-- Social surveys and citizen satisfaction
-- Urban development and transportation metrics
+### ✅ Aktuell: FRITZ (fritz.freiburg.de)
+17 PDFs (2018-2025):
+- 7 Wahlberichte
+- 8 Statistiken
+- 1 Sozialbericht
+- 1 Sonstige
 
-**Total indexed**: 3776 document chunks optimized for German text retrieval
+**Indexed**: 2713 Dokumente mit Metadaten (Jahr, Typ, Titel, Topics)
 
-**Future data sources**:
-- City council protocols
-- Local news archives
-- Administrative databases
-- Real-time transit data
-- Event calendars
+### 🔜 Geplante Integration
+| Plattform | Beschreibung |
+|-----------|-------------|
+| **RIS** | Rats- und Bürgerinformationssystem (Gemeinderatsprotokolle) |
+| **FreiGIS** | Geodaten-Portal (Stadtpläne, Flurstücke) |
+| **Amtsblatt** | E-Paper (amtliche Bekanntmachungen) |
+| **Beteiligungshaushalt** | Bürgerbeteiligung am Haushalt |
+| **Kataster** | Wärmekataster, Flächennutzung |
 
 ## 🔍 Example Queries
 
+- "Was sagt der 2024 Sozialbericht?" (auto-filters by year)
+- "Zeige nur Wahlberichte von 2024" (filters by year + type)
 - "Wie viele Menschen leben in Freiburg-Vauban?"
-- "Was sind die häufigsten Beschwerden der Bürger?"
-- "Zeige mir die Entwicklung der Mietpreise in den letzten 5 Jahren"
 - "Welche Stadtteile haben die höchste Zufriedenheit mit dem ÖPNV?"
-- "Wie ist die Arbeitslosenquote in Freiburg?"
+- "Entwicklung der Mietpreise in den letzten 5 Jahren"
 
 ## 📈 Roadmap
 
-### Phase 1: Foundation ✅ (Current)
-- [x] Basic RAG pipeline with Haystack
+### Phase 1: Foundation ✅
+- [x] RAG pipeline (Haystack + Qdrant)
+- [x] Metadata extraction & filtering
 - [x] Web interface with privacy mode
-- [x] CLI tools for testing and interaction
-- [x] Simplified architecture (279 lines)
-- [x] German-optimized retrieval
-- [ ] Improved source citations
-- [ ] Semantic chunking
-- [ ] Response time optimization
+- [x] CLI tools
+- [x] Enhanced citations (year, type, title)
 
 ### Phase 2: Expansion
 - [ ] Additional data sources (news, events)
@@ -215,8 +199,8 @@ Currently processing 17 comprehensive PDF reports from fritz.freiburg.de includi
 - [ ] Community-driven data validation
 
 ## 🏗️ Project Structure
-
 ```
+
 freibot/
 ├── api.py                    # API server (single source of truth)
 ├── webapp/
@@ -233,43 +217,60 @@ freibot/
 │       └── test_retrieval.py
 ├── data/
 │   ├── pdfs/                # 17 Fritz Freiburg PDFs
-│   └── vectorstore/         # ChromaDB storage
+│   ├── metadata_cache.json  # LLM-extracted metadata
+│   └── (Qdrant storage in Docker volume)
 ├── requirements.txt         # Python dependencies
 ├── .env                     # API keys
 └── WARP.md                  # Warp quick guide
-```
 
+```
 Deprecated:
 - freibot.py — kept as a shim to forward to api.py for compatibility
 
 ## 👥 Team & Community
 
-**Project Lead**: Gabriel (Gabe)
-- Master in Biology, focusing on AI alignment and civic tech
-- Member of Fröhliches Freiburg and EA Freiburg
+**Projektsprecherin**: Valerie Tabea Schult
+- OB-Kandidatin 2026 Freiburg im Breisgau
+- 📧 valerieschult@gmail.com
+- 🌐 [www.oberbuergermeisterin-freiburg.de](http://www.oberbuergermeisterin-freiburg.de)
 
-**Contributors**:
-- Darius: Physics/CS, Quantum ML background
+**Organisator**: Joshua Allgeier
+- 📧 joshua.allgeier@froehlichesfreiburg.de
+- 📞 +49 1578 7601990
+
+**Ehrenamtliche Entwickler:innen** (Stand Oktober 2025):
+- Gabriel (Lead Dev) – Master in Biology, AI alignment & civic tech
+- Darius – Physics/CS, Quantum ML
+- Nico
+- Robert
+- Waldemar
+- **Du?** – Melde dich bei Joshua!
+
+**Ort**: Haus des Engagements, Rehlingstraße 9, 79117 Freiburg (hybrid)
 
 **Community Partners**:
 - Fröhliches Freiburg
 - Effective Altruism Freiburg
-- (Seeking: Stadt Freiburg Amt für Digitales)
+- (Ziel: Kooperation mit Stadt Freiburg / DIGIT)
 
 ## 📄 License
 
 MIT License - See [LICENSE](LICENSE) for details
 
-## 🙏 Acknowledgments
+## 🙏 Danksagungen
 
-- Fritz Freiburg for comprehensive city data
-- The Haystack community for excellent RAG tools
-- VoyageAI and OpenRouter for accessible AI APIs
-- Freiburg citizens for inspiration and feedback
-- Claude AI for development assistance (meta!)
+- **KI Parla** (City Lab Berlin) – Open-Source-Vorbild
+- **FRITZ Freiburg** – Offene Stadtdaten
+- **Haystack Community** – RAG-Framework
+- **VoyageAI & OpenRouter** – AI APIs
+- **Valerie Tabea Schult** – Projekt-Initiatorin
+- Alle ehrenamtlichen Entwickler:innen
 
 ---
 
-**Built with ❤️ for Freiburg by Freiburgers**
+**Mit ❤️ entwickelt von Freiburger:innen für Freiburg**
 
-*"Making our city's knowledge accessible to all - fast and for frei!"*
+*"Datentransparenz für alle – offen, zugänglich, demokratisch."*
+
+**OB-Wahl Juni 2026** – Freibot als Recherche-Tool und Faktenchecker
+```

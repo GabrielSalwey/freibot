@@ -1,19 +1,13 @@
 """
-Freibot document indexing — PDF → embeddings (Qdrant + VoyageAI).
-
-Processes PDFs in data/pdfs into embeddings and writes them to Qdrant
-vectorstore with LLM-extracted metadata for filtering.
-
-Run this before starting the API (api.py) if no vectorstore exists, or use
---mode append to add newly added PDFs without clearing existing data.
+Freibot document indexing — PDF → Qdrant with metadata.
+Extract metadata via LLM, embed with VoyageAI, store in Qdrant.
+Run before starting API if vectorstore empty.
 """
 
 import os
 import sys
-import time
 import json
 from pathlib import Path
-from collections import deque
 from dotenv import load_dotenv
 
 from haystack import Pipeline
@@ -28,6 +22,17 @@ from haystack.utils.auth import Secret
 sys.path.insert(0, str(Path(__file__).parent))
 from extract_metadata import extract_all_metadata
 
+# Import centralized configuration
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config import (
+    VOYAGE_MODEL,
+    VOYAGE_INPUT_TYPE_DOCUMENT,
+    EMBEDDING_DIM,
+    QDRANT_HOST,
+    QDRANT_PORT,
+    QDRANT_COLLECTION
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -35,10 +40,6 @@ load_dotenv()
 # Modify these settings to control indexing behavior
 
 PDF_DIR = "data/pdfs"                          # Directory containing PDFs to index
-QDRANT_HOST = "localhost"                     # Qdrant host
-QDRANT_PORT = 6333                            # Qdrant port
-QDRANT_COLLECTION = "freiburg_docs_v1"        # Collection name (must match api.py)
-EMBEDDING_DIM = 1024                           # Voyage-3-large default dimension
 
 # Chunking configuration
 CHUNK_METHOD = "sentence"                      # "sentence", "word", or "passage"
@@ -46,57 +47,7 @@ CHUNK_SIZE = 4                                 # Number of units per chunk
 CHUNK_OVERLAP = 1                              # Overlap between chunks
 CHUNK_THRESHOLD = 0                            # Minimum chunk size
 
-# Model configuration
-EMBEDDING_MODEL = "voyage-3-large"             # Voyage embedding model (512-dim, int8)
-INPUT_TYPE = "document"                        # Input type for embeddings
-
-# Rate limiting (VoyageAI limits: 2000 RPM, 20M TPM)
-MAX_REQUESTS_PER_MINUTE = 1800                 # Conservative: 90% of limit
-MAX_TOKENS_PER_MINUTE = 15_000_000            # Conservative: 75% of limit
-ESTIMATED_TOKENS_PER_PDF = 10000              # Rough estimate
-
 # ========== END CONFIGURATION ==========
-
-
-class SimpleRateLimiter:
-    """Rate limiter for VoyageAI API calls"""
-    def __init__(self, max_requests_per_minute=MAX_REQUESTS_PER_MINUTE, max_tokens_per_minute=MAX_TOKENS_PER_MINUTE):
-        self.max_rpm = max_requests_per_minute  
-        self.max_tpm = max_tokens_per_minute
-        self.request_times = deque()
-        self.token_usage = deque()
-    
-    def wait_if_needed(self, estimated_tokens=ESTIMATED_TOKENS_PER_PDF):
-        """Wait if we would exceed rate limits"""
-        now = time.time()
-        minute_ago = now - 60
-        
-        # Clean old entries
-        while self.request_times and self.request_times[0] < minute_ago:
-            self.request_times.popleft()
-        while self.token_usage and self.token_usage[0][0] < minute_ago:
-            self.token_usage.popleft()
-        
-        # Check RPM limit
-        if len(self.request_times) >= self.max_rpm:
-            sleep_time = 60 - (now - self.request_times[0])
-            if sleep_time > 0:
-                print(f"  Rate limiting: waiting {sleep_time:.1f}s (RPM limit)")
-                time.sleep(sleep_time)
-                return self.wait_if_needed(estimated_tokens)
-        
-        # Check TPM limit
-        current_tokens = sum(tokens for _, tokens in self.token_usage)
-        if current_tokens + estimated_tokens > self.max_tpm:
-            sleep_time = 60 - (now - self.token_usage[0][0])
-            if sleep_time > 0:
-                print(f"  Rate limiting: waiting {sleep_time:.1f}s (TPM limit)")
-                time.sleep(sleep_time)
-                return self.wait_if_needed(estimated_tokens)
-        
-        # Record this request
-        self.request_times.append(now)
-        self.token_usage.append((now, estimated_tokens))
 
 
 from haystack import component
@@ -138,8 +89,8 @@ def build_index_pipeline(store, pdf_metadata=None):
     # Voyage embedder
     p.add_component("embed", VoyageDocumentEmbedder(
         api_key=Secret.from_token(os.getenv("VOYAGE_API_KEY")),
-        model=EMBEDDING_MODEL,
-        input_type=INPUT_TYPE
+        model=VOYAGE_MODEL,
+        input_type=VOYAGE_INPUT_TYPE_DOCUMENT
     ))
     
     # Document writer
@@ -247,10 +198,7 @@ def index_pdfs(mode="full"):
     print("Phase 2: Embedding & Indexing")
     print('='*60)
     print(f"Chunking: {CHUNK_METHOD}, size={CHUNK_SIZE}, overlap={CHUNK_OVERLAP}")
-    print(f"Model: {EMBEDDING_MODEL} ({EMBEDDING_DIM}-dim)")
-    
-    # Initialize rate limiter
-    rate_limiter = SimpleRateLimiter()
+    print(f"Model: {VOYAGE_MODEL} ({EMBEDDING_DIM}-dim)")
     
     # Process PDFs
     print(f"\nProcessing PDFs:")
@@ -267,9 +215,6 @@ def index_pdfs(mode="full"):
         print(f"  Metadata: year={pdf_metadata.get('year')}, type={pdf_metadata.get('document_type')}")
         
         try:
-            # Rate limiting
-            rate_limiter.wait_if_needed(ESTIMATED_TOKENS_PER_PDF)
-            
             # Build pipeline with this PDF's metadata
             pipeline = build_index_pipeline(store, pdf_metadata)
             
@@ -290,12 +235,6 @@ def index_pdfs(mode="full"):
             print(f" FAILED")
             print(f"  Error: {e}")
             errors.append({"file": pdf.name, "error": str(e)})
-            
-            # If rate limit error, suggest solution
-            if "rate" in str(e).lower():
-                print("\n  Tip: Add payment method to VoyageAI for higher limits")
-                print("       or wait and run script again to continue")
-                break
     
     # Summary
     print("\n" + "=" * 60)

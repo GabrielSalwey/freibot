@@ -1,6 +1,6 @@
 """
-Freibot API - Single source of truth for RAG
-FastAPI server exposing /ask, /health, /stats, /index
+Freibot API — RAG with Qdrant + metadata filtering
+Endpoints: /ask, /health, /stats
 """
 
 import os
@@ -25,16 +25,19 @@ from haystack_integrations.components.generators.openrouter import OpenRouterCha
 from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack.utils.auth import Secret
 
+# Import centralized configuration
+from config import (
+    VOYAGE_MODEL,
+    VOYAGE_INPUT_TYPE_QUERY,
+    EMBEDDING_DIM,
+    QDRANT_HOST,
+    QDRANT_PORT,
+    QDRANT_COLLECTION,
+    LLM_MODEL
+)
+
 # Load environment variables
 load_dotenv()
-
-# Configuration
-VOYAGE_MODEL = "voyage-3-large"
-LLM_MODEL = "openai/gpt-4o-mini"
-QDRANT_HOST = "localhost"
-QDRANT_PORT = 6333
-QDRANT_COLLECTION = "freiburg_docs_v1"
-EMBEDDING_DIM = 1024  # voyage-3-large default dimension
 
 # Allow Chainlit (localhost:8000) by default; override with ALLOWED_ORIGINS env (comma-separated)
 _default_origins = "http://localhost:8000,http://127.0.0.1:8000"
@@ -49,7 +52,6 @@ try:
         embedding_dim=EMBEDDING_DIM,
         recreate_index=False,
         return_embedding=False,
-        wait_result_from_api=True,
     )
     STORE_AVAILABLE = True
 except Exception as e:
@@ -152,7 +154,7 @@ def build_pipeline() -> Pipeline:
     p.add_component("embed", VoyageTextEmbedder(
         api_key=Secret.from_token(os.getenv("VOYAGE_API_KEY")),
         model=VOYAGE_MODEL,
-        input_type="query"
+        input_type=VOYAGE_INPUT_TYPE_QUERY
     ))
 
     p.add_component("retrieve", QdrantEmbeddingRetriever(
