@@ -1,8 +1,8 @@
 """
-Freibot document indexing — PDF → embeddings (ChromaDB + VoyageAI).
+Freibot document indexing — PDF → embeddings (Qdrant + VoyageAI).
 
-Processes PDFs in data/pdfs into embeddings and writes them to the local ChromaDB
-vectorstore used by the API.
+Processes PDFs in data/pdfs into embeddings and writes them to Qdrant
+vectorstore with LLM-extracted metadata for filtering.
 
 Run this before starting the API (api.py) if no vectorstore exists, or use
 --mode append to add newly added PDFs without clearing existing data.
@@ -11,6 +11,7 @@ Run this before starting the API (api.py) if no vectorstore exists, or use
 import os
 import sys
 import time
+import json
 from pathlib import Path
 from collections import deque
 from dotenv import load_dotenv
@@ -20,8 +21,12 @@ from haystack.components.converters import PyPDFToDocument
 from haystack.components.preprocessors import DocumentSplitter
 from haystack.components.writers import DocumentWriter
 from haystack_integrations.components.embedders.voyage_embedders import VoyageDocumentEmbedder
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack.utils.auth import Secret
+
+# Import metadata extractor
+sys.path.insert(0, str(Path(__file__).parent))
+from extract_metadata import extract_all_metadata
 
 # Load environment variables
 load_dotenv()
@@ -30,8 +35,10 @@ load_dotenv()
 # Modify these settings to control indexing behavior
 
 PDF_DIR = "data/pdfs"                          # Directory containing PDFs to index
-VECTORSTORE_PATH = "./data/vectorstore"        # ChromaDB storage location
-COLLECTION_NAME = "freiburg_docs_v3large"      # Collection name (must match freibot.py)
+QDRANT_HOST = "localhost"                     # Qdrant host
+QDRANT_PORT = 6333                            # Qdrant port
+QDRANT_COLLECTION = "freiburg_docs_v1"        # Collection name (must match api.py)
+EMBEDDING_DIM = 1024                           # Voyage-3-large default dimension
 
 # Chunking configuration
 CHUNK_METHOD = "sentence"                      # "sentence", "word", or "passage"
@@ -92,8 +99,25 @@ class SimpleRateLimiter:
         self.token_usage.append((now, estimated_tokens))
 
 
-def build_index_pipeline(store):
-    """Build Haystack pipeline for indexing PDFs"""
+from haystack import component
+from typing import List
+from haystack.dataclasses import Document
+
+@component
+class MetadataInjector:
+    """Inject PDF-level metadata into all document chunks."""
+    def __init__(self, metadata: dict):
+        self.metadata = metadata
+    
+    @component.output_types(documents=List[Document])
+    def run(self, documents: List[Document]):
+        """Add metadata to all documents."""
+        for doc in documents:
+            doc.meta.update(self.metadata)
+        return {"documents": documents}
+
+def build_index_pipeline(store, pdf_metadata=None):
+    """Build Haystack pipeline for indexing PDFs with metadata."""
     p = Pipeline()
     
     # PDF converter
@@ -107,6 +131,10 @@ def build_index_pipeline(store):
         split_threshold=CHUNK_THRESHOLD
     ))
     
+    # Metadata injector (if metadata provided)
+    if pdf_metadata:
+        p.add_component("inject_meta", MetadataInjector(metadata=pdf_metadata))
+    
     # Voyage embedder
     p.add_component("embed", VoyageDocumentEmbedder(
         api_key=Secret.from_token(os.getenv("VOYAGE_API_KEY")),
@@ -119,7 +147,11 @@ def build_index_pipeline(store):
     
     # Connect pipeline
     p.connect("pdf", "split")
-    p.connect("split", "embed")
+    if pdf_metadata:
+        p.connect("split", "inject_meta")
+        p.connect("inject_meta", "embed")
+    else:
+        p.connect("split", "embed")
     p.connect("embed", "write")
     
     return p
@@ -128,40 +160,45 @@ def build_index_pipeline(store):
 def clear_vectorstore(store):
     """Clear all documents from the vectorstore"""
     try:
-        # Get all document IDs and delete them
-        all_docs = store.filter_documents()
-        if all_docs:
-            doc_ids = [doc.id for doc in all_docs]
-            store.delete_documents(doc_ids)
-            print(f"Cleared {len(doc_ids)} documents from vectorstore")
+        # Qdrant: delete collection and recreate
+        store.delete_index()
+        print(f"Cleared vectorstore (recreated collection)")
     except Exception as e:
         print(f"Note: Could not clear vectorstore (might be empty): {e}")
 
 
 def index_pdfs(mode="full"):
     """
-    Index PDFs into ChromaDB vectorstore
+    Index PDFs into Qdrant vectorstore with metadata
     
     Args:
         mode: "full" (clear and reindex) or "append" (add new documents)
     """
     print("=" * 60)
-    print("Freibot Document Indexing")
+    print("Freibot Document Indexing (Qdrant + Metadata)")
     print("=" * 60)
     
     # Check environment
     if not os.getenv("VOYAGE_API_KEY"):
         print("ERROR: VOYAGE_API_KEY not set in .env file")
         return False
+    if not os.getenv("OPENROUTER_API_KEY"):
+        print("ERROR: OPENROUTER_API_KEY not set (needed for metadata extraction)")
+        return False
     
-    # Initialize ChromaDB
-    print(f"\nInitializing ChromaDB:")
-    print(f"  Path: {VECTORSTORE_PATH}")
-    print(f"  Collection: {COLLECTION_NAME}")
+    # Initialize Qdrant
+    print(f"\nInitializing Qdrant:")
+    print(f"  Host: {QDRANT_HOST}:{QDRANT_PORT}")
+    print(f"  Collection: {QDRANT_COLLECTION}")
     
-    store = ChromaDocumentStore(
-        persist_path=VECTORSTORE_PATH,
-        collection_name=COLLECTION_NAME
+    store = QdrantDocumentStore(
+        host=QDRANT_HOST,
+        port=QDRANT_PORT,
+        index=QDRANT_COLLECTION,
+        embedding_dim=EMBEDDING_DIM,
+        recreate_index=(mode == "full"),
+        return_embedding=False,
+        wait_result_from_api=True,
     )
     
     # Check current state
@@ -189,16 +226,28 @@ def index_pdfs(mode="full"):
     
     print(f"\nFound {len(pdfs)} PDFs to process")
     
-    # Display configuration
-    print(f"\nChunking configuration:")
-    print(f"  Method: {CHUNK_METHOD}")
-    print(f"  Size: {CHUNK_SIZE} {CHUNK_METHOD}s per chunk")
-    print(f"  Overlap: {CHUNK_OVERLAP} {CHUNK_METHOD}(s)")
-    print(f"  Model: {EMBEDDING_MODEL} (512-dim, int8)")
+    # Extract metadata first
+    print(f"\n{'='*60}")
+    print("Phase 1: Metadata Extraction (LLM)")
+    print('='*60)
     
-    # Build pipeline
-    print(f"\nBuilding indexing pipeline...")
-    pipeline = build_index_pipeline(store)
+    # Load cached metadata if exists
+    metadata_cache_path = Path("data/metadata_cache.json")
+    if metadata_cache_path.exists():
+        print(f"Loading cached metadata from {metadata_cache_path}")
+        with open(metadata_cache_path, "r", encoding="utf-8") as f:
+            metadata_map = json.load(f)
+        print(f"Loaded metadata for {len(metadata_map)} PDFs")
+    else:
+        print("No cached metadata found, extracting...")
+        metadata_map = extract_all_metadata(pdf_dir)
+    
+    # Display configuration
+    print(f"\n{'='*60}")
+    print("Phase 2: Embedding & Indexing")
+    print('='*60)
+    print(f"Chunking: {CHUNK_METHOD}, size={CHUNK_SIZE}, overlap={CHUNK_OVERLAP}")
+    print(f"Model: {EMBEDDING_MODEL} ({EMBEDDING_DIM}-dim)")
     
     # Initialize rate limiter
     rate_limiter = SimpleRateLimiter()
@@ -213,9 +262,16 @@ def index_pdfs(mode="full"):
     for i, pdf in enumerate(pdfs, 1):
         print(f"\n[{i}/{len(pdfs)}] {pdf.name}")
         
+        # Get metadata for this PDF
+        pdf_metadata = metadata_map.get(pdf.name, {})
+        print(f"  Metadata: year={pdf_metadata.get('year')}, type={pdf_metadata.get('document_type')}")
+        
         try:
             # Rate limiting
             rate_limiter.wait_if_needed(ESTIMATED_TOKENS_PER_PDF)
+            
+            # Build pipeline with this PDF's metadata
+            pipeline = build_index_pipeline(store, pdf_metadata)
             
             # Index the PDF
             print(f"  Indexing...", end="", flush=True)
@@ -224,14 +280,14 @@ def index_pdfs(mode="full"):
             # Check result
             if "write" in result and "documents_written" in result["write"]:
                 docs_written = result["write"]["documents_written"]
-                print(f" ✓ ({docs_written} chunks)")
+                print(f" OK ({docs_written} chunks)")
                 indexed += 1
             else:
-                print(f" ✓")
+                print(f" OK")
                 indexed += 1
                 
         except Exception as e:
-            print(f" ✗")
+            print(f" FAILED")
             print(f"  Error: {e}")
             errors.append({"file": pdf.name, "error": str(e)})
             
@@ -253,8 +309,9 @@ def index_pdfs(mode="full"):
         for error in errors[:5]:  # Show first 5 errors
             print(f"    - {error['file']}: {error['error'][:50]}...")
     
-    print(f"\n✓ Vectorstore ready at: {VECTORSTORE_PATH}")
-    print(f"  Run 'python api.py' to start the API server")
+    print(f"\nQdrant ready at: {QDRANT_HOST}:{QDRANT_PORT}")
+    print(f"  Web UI: http://localhost:6333/dashboard")
+    print(f"\n  Run 'python api.py' to start the API server")
     
     return indexed > 0
 

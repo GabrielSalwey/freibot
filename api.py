@@ -20,9 +20,9 @@ from haystack import Pipeline
 from haystack.components.builders import ChatPromptBuilder
 from haystack.dataclasses import ChatMessage
 from haystack_integrations.components.embedders.voyage_embedders import VoyageTextEmbedder
-from haystack_integrations.components.retrievers.chroma import ChromaEmbeddingRetriever
+from haystack_integrations.components.retrievers.qdrant import QdrantEmbeddingRetriever
 from haystack_integrations.components.generators.openrouter import OpenRouterChatGenerator
-from haystack_integrations.document_stores.chroma import ChromaDocumentStore
+from haystack_integrations.document_stores.qdrant import QdrantDocumentStore
 from haystack.utils.auth import Secret
 
 # Load environment variables
@@ -31,22 +31,29 @@ load_dotenv()
 # Configuration
 VOYAGE_MODEL = "voyage-3-large"
 LLM_MODEL = "openai/gpt-4o-mini"
-VECTORSTORE_PATH = "./data/vectorstore"
-COLLECTION_NAME = "freiburg_docs_v3large"
+QDRANT_HOST = "localhost"
+QDRANT_PORT = 6333
+QDRANT_COLLECTION = "freiburg_docs_v1"
+EMBEDDING_DIM = 1024  # voyage-3-large default dimension
 
 # Allow Chainlit (localhost:8000) by default; override with ALLOWED_ORIGINS env (comma-separated)
 _default_origins = "http://localhost:8000,http://127.0.0.1:8000"
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", _default_origins).split(",")
 
-# Initialize ChromaDB store with error handling
+# Initialize Qdrant store with error handling
 try:
-    store = ChromaDocumentStore(
-        persist_path=VECTORSTORE_PATH,
-        collection_name=COLLECTION_NAME
+    store = QdrantDocumentStore(
+        host=QDRANT_HOST,
+        port=QDRANT_PORT,
+        index=QDRANT_COLLECTION,
+        embedding_dim=EMBEDDING_DIM,
+        recreate_index=False,
+        return_embedding=False,
+        wait_result_from_api=True,
     )
     STORE_AVAILABLE = True
 except Exception as e:
-    print(f"WARNING: Failed to initialize vectorstore: {e}")
+    print(f"WARNING: Failed to initialize Qdrant: {e}")
     store = None
     STORE_AVAILABLE = False
 
@@ -148,7 +155,7 @@ def build_pipeline() -> Pipeline:
         input_type="query"
     ))
 
-    p.add_component("retrieve", ChromaEmbeddingRetriever(
+    p.add_component("retrieve", QdrantEmbeddingRetriever(
         document_store=store,
         top_k=3
     ))
@@ -182,6 +189,57 @@ Antwort (auf Deutsch, mit Quellenangaben [1], [2] etc.):"""
     p.connect("prompt.prompt", "llm.messages")
 
     return p
+
+def extract_filters_from_query(question: str, llm) -> dict:
+    """
+    Use LLM to extract metadata filters from natural language query.
+    Returns Qdrant filter dict or empty dict.
+    """
+    # Quick check: does query mention years/filters?
+    if not any(word in question.lower() for word in ["2024", "2023", "2022", "2021", "2020", "2025", "jahr", "bericht", "wahl", "nur", "sozialbericht", "statistik"]):
+        return {}
+    
+    prompt = f"""Analysiere diese Frage und extrahiere Filter für eine Dokumentensuche.
+
+Frage: "{question}"
+
+Verfügbare Filter:
+- year (Integer): z.B. 2024, 2023
+- document_type (String): "wahlbericht", "sozialbericht", "statistik", "studie", "sonstiges"
+
+Gib NUR die Filter als JSON zurück, z.B.:
+{{"year": 2024}}
+oder
+{{"year": 2024, "document_type": "sozialbericht"}}
+oder
+{{}}  (wenn keine Filter erkennbar)
+
+Antwort (nur JSON):"""
+
+    try:
+        messages = [ChatMessage.from_user(prompt)]
+        result = llm.run(messages=messages)
+        response = result["replies"][0].text.strip()
+        
+        # Parse JSON
+        if response.startswith("```"):
+            response = response.split("```")[1]
+            if response.startswith("json"):
+                response = response[4:]
+        
+        filters = json.loads(response.strip())
+        
+        # Convert to Qdrant filter format
+        qdrant_filters = {}
+        if "year" in filters and filters["year"]:
+            qdrant_filters["year"] = filters["year"]
+        if "document_type" in filters and filters["document_type"]:
+            qdrant_filters["document_type"] = filters["document_type"]
+        
+        return qdrant_filters
+    except Exception as e:
+        print(f"Filter extraction failed: {e}")
+        return {}
 
 def log_conversation(question: str, answer: str, success: bool):
     """Simple logging to file."""
@@ -223,9 +281,16 @@ async def ask(request: AskRequest):
                 answer = "System nicht verfügbar. Bitte versuchen Sie es später erneut."
             sources = []
         else:
+            # Extract filters from query using LLM
+            llm_component = rag_pipeline.get_component("llm")
+            filters = extract_filters_from_query(question, llm_component)
+            
             # RAG pipeline for answer
             retriever = rag_pipeline.get_component("retrieve")
             retriever.top_k = k
+            if filters:
+                retriever.filters = filters
+                print(f"Applying filters: {filters}")
 
             result = rag_pipeline.run({
                 "embed": {"text": question},
@@ -261,8 +326,10 @@ async def ask(request: AskRequest):
                 content_text = getattr(doc, "text", None) or getattr(doc, "content", "")
                 sources.append({
                     "id": i + 1,
-                    "document": file_name.replace("_", " "),
+                    "document": doc.meta.get("title", file_name.replace("_", " ")),
                     "content": (content_text[:300] + "...") if content_text else "",
+                    "year": doc.meta.get("year"),
+                    "type": doc.meta.get("document_type"),
                     "page": doc.meta.get("page_number")
                 })
 
@@ -288,6 +355,7 @@ async def ask(request: AskRequest):
             "sources": sources,
             "meta": {
                 "retrieval_k": k if needs_retrieval else 0,
+                "filters_applied": filters if (needs_retrieval and 'filters' in locals()) else {},
                 "embedding_model": f"{VOYAGE_MODEL} (512-dim, int8)",
                 "llm_model": LLM_MODEL
             }

@@ -36,6 +36,8 @@ data/vectorstore/
 webapp/data/vectorstore/
 vectorstore/
 conversation_log.jsonl
+data/qdrant/
+data/metadata_cache.json
 
 # Jupyter Notebook
 .ipynb_checkpoints

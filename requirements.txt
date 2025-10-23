@@ -3,10 +3,10 @@ haystack-ai
 voyage-embedders-haystack
 voyageai
 openrouter-haystack
-chromadb
 
-# Haystack integrations (required for both FastAPI and Chainlit)
-chroma-haystack
+# Vector database
+qdrant-haystack
+qdrant-client
 aiohttp
 pypdf
 fastapi
