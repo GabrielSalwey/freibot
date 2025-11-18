@@ -273,4 +273,3 @@ MIT License - See [LICENSE](LICENSE) for details
 *"Datentransparenz für alle – offen, zugänglich, demokratisch."*
 
 **OB-Wahl Juni 2026** – Freibot als Recherche-Tool und Faktenchecker
-```
