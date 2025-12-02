@@ -36,8 +36,6 @@ Thumbs.db
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Docker
-docker-compose.override.yml
 
 # Claude configuration
 .claude/
